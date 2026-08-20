@@ -1,0 +1,217 @@
+'use client'
+
+import { CalendarDays, ChevronLeft, ChevronRight, Dot } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { EmptyState } from '@/components/shared/empty-state'
+import { TaskCard } from '@/components/tasks/task-card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { taskTypeMeta } from '@/lib/task-meta'
+import type { Task } from '@/lib/types'
+import { cn, formatFriendlyDay, toDayKey, todayKey } from '@/lib/utils'
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+interface DayCell {
+  key: string
+  date: Date
+  inMonth: boolean
+  isToday: boolean
+  tasks: Task[]
+}
+
+/** Six rows of seven, Monday-first, always the same height so nothing jumps. */
+function buildMonth(year: number, month: number, byDay: Map<string, Task[]>): DayCell[] {
+  const first = new Date(year, month, 1)
+  // getDay() is Sunday-first; shift so Monday is column 0.
+  const lead = (first.getDay() + 6) % 7
+  const start = new Date(year, month, 1 - lead)
+  const today = todayKey()
+
+  return Array.from({ length: 42 }, (_, i) => {
+    const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
+    const key = toDayKey(date)
+    return {
+      key,
+      date,
+      inMonth: date.getMonth() === month,
+      isToday: key === today,
+      tasks: byDay.get(key) ?? [],
+    }
+  })
+}
+
+interface WorkCalendarProps {
+  tasks: Task[]
+  isLoading?: boolean
+  /** Shown above the grid, e.g. whose calendar this is. */
+  caption?: string
+  className?: string
+}
+
+export function WorkCalendar({ tasks, isLoading = false, caption, className }: WorkCalendarProps) {
+  const [cursor, setCursor] = useState(() => {
+    const now = new Date()
+    return { year: now.getFullYear(), month: now.getMonth() }
+  })
+  const [selected, setSelected] = useState<string>(() => todayKey())
+
+  const byDay = useMemo(() => {
+    const map = new Map<string, Task[]>()
+    for (const task of tasks) {
+      const when = task.due_date ?? task.created_at
+      const key = toDayKey(when)
+      const list = map.get(key)
+      if (list) list.push(task)
+      else map.set(key, [task])
+    }
+    for (const list of Array.from(map.values())) {
+      list.sort((a: Task, b: Task) => {
+        const aT = a.due_date ? new Date(a.due_date).getTime() : 0
+        const bT = b.due_date ? new Date(b.due_date).getTime() : 0
+        return aT - bT
+      })
+    }
+    return map
+  }, [tasks])
+
+  const cells = useMemo(() => buildMonth(cursor.year, cursor.month, byDay), [cursor, byDay])
+  const selectedTasks = byDay.get(selected) ?? []
+
+  const monthLabel = new Date(cursor.year, cursor.month, 1).toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  })
+
+  function shiftMonth(by: number) {
+    setCursor((c) => {
+      const d = new Date(c.year, c.month + by, 1)
+      return { year: d.getFullYear(), month: d.getMonth() }
+    })
+  }
+
+  function goToday() {
+    const now = new Date()
+    setCursor({ year: now.getFullYear(), month: now.getMonth() })
+    setSelected(todayKey())
+  }
+
+  if (isLoading) {
+    return (
+      <div className={cn('grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]', className)}>
+        <Skeleton className="h-[420px] w-full rounded-2xl" />
+        <Skeleton className="h-[420px] w-full rounded-2xl" />
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn('grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]', className)}>
+      {/* ---- Month grid ------------------------------------------- */}
+      <section className="glass-panel p-4 sm:p-5">
+        <header className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="min-w-0">
+            <h2 className="text-[16px] font-semibold tracking-[-0.014em] text-zinc-900">{monthLabel}</h2>
+            {caption && <p className="mt-0.5 text-[12px] text-zinc-500">{caption}</p>}
+          </div>
+          <div className="ml-auto flex items-center gap-1.5">
+            <Button variant="glass" size="icon-sm" onClick={() => shiftMonth(-1)} aria-label="Previous month">
+              <ChevronLeft />
+            </Button>
+            <Button variant="glass" size="sm" onClick={goToday} className="gap-1.5">
+              <CalendarDays className="!size-3.5" />
+              Today
+            </Button>
+            <Button variant="glass" size="icon-sm" onClick={() => shiftMonth(1)} aria-label="Next month">
+              <ChevronRight />
+            </Button>
+          </div>
+        </header>
+
+        <div className="mb-1.5 grid grid-cols-7 gap-1">
+          {WEEKDAYS.map((d) => (
+            <div key={d} className="py-1 text-center text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+              {d}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {cells.map((cell) => {
+            const isSelected = cell.key === selected
+            const count = cell.tasks.length
+            const dots = cell.tasks.slice(0, 4)
+            return (
+              <button
+                key={cell.key}
+                type="button"
+                onClick={() => setSelected(cell.key)}
+                aria-label={`${cell.date.toLocaleDateString(undefined, { dateStyle: 'full' })}, ${count} ${count === 1 ? 'job' : 'jobs'}`}
+                aria-pressed={isSelected}
+                className={cn(
+                  'btn-3d group relative flex aspect-square min-h-[46px] flex-col items-center justify-start gap-1 rounded-xl p-1.5',
+                  'transition-[background-color,box-shadow,color] duration-base ease-apple-snap',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                  !cell.inMonth && 'opacity-40',
+                  isSelected
+                    ? 'bg-[linear-gradient(176deg,hsl(250_92%_70%),hsl(250_84%_58%))] text-white shadow-[0_4px_14px_-3px_hsl(250_84%_58%/0.55),0_0_22px_-6px_hsl(250_88%_66%/0.6),inset_0_1px_0_rgb(255_255_255/0.42)]'
+                    : 'text-zinc-700 hover:bg-zinc-900/[.05]',
+                  !isSelected && cell.isToday && 'shadow-[inset_0_0_0_1.5px_hsl(var(--primary)/0.55)]',
+                )}
+              >
+                <span className={cn('text-[12.5px] font-medium tabular-nums', cell.isToday && !isSelected && 'text-primary')}>
+                  {cell.date.getDate()}
+                </span>
+                {count > 0 && (
+                  <span className="flex items-center gap-0.5">
+                    {dots.map((t) => (
+                      <span
+                        key={t.id}
+                        className={cn(
+                          'h-1.5 w-1.5 rounded-full',
+                          isSelected ? 'bg-white/85' : taskTypeMeta(t.task_type).dot,
+                        )}
+                      />
+                    ))}
+                    {count > 4 && (
+                      <span className={cn('text-[9px] font-semibold', isSelected ? 'text-white/85' : 'text-zinc-400')}>
+                        +{count - 4}
+                      </span>
+                    )}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* ---- Selected day ----------------------------------------- */}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-[16px] font-semibold tracking-[-0.014em] text-zinc-900">
+            {formatFriendlyDay(selected)}
+          </h2>
+          <Badge variant={selectedTasks.length > 0 ? 'primary' : 'outline'}>
+            {selectedTasks.length} {selectedTasks.length === 1 ? 'job' : 'jobs'}
+          </Badge>
+        </div>
+
+        {selectedTasks.length === 0 ? (
+          <EmptyState
+            icon={Dot}
+            title="Nothing on this day"
+            description="Pick another date, or anything scheduled for this day will appear here as soon as it is assigned."
+          />
+        ) : (
+          <div className="grid gap-3 stagger">
+            {selectedTasks.map((task) => (
+              <TaskCard key={task.id} task={task} />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}

@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { OrgNode } from '@/hooks/use-flowline'
 import { cn, pluralize } from '@/lib/utils'
 import { useUIStore } from '@/store/ui'
+import { ZoomPan } from './zoom-pan'
 
 interface PersonNodeProps {
   node: OrgNode
@@ -165,7 +166,7 @@ export function OrgChart({ roots, orphans, isAdmin, isLoading }: OrgChartProps) 
   }
 
   return (
-    <div className="w-full overflow-x-auto pb-4">
+    <ZoomPan>
       <div className="flex min-w-max flex-col items-center gap-10 px-4 py-6 stagger">
         {roots.map((root) => (
           <Branch key={root.profile.id} node={root} isAdmin={isAdmin} />
@@ -182,6 +183,6 @@ export function OrgChart({ roots, orphans, isAdmin, isLoading }: OrgChartProps) 
           </div>
         )}
       </div>
-    </div>
+    </ZoomPan>
   )
 }

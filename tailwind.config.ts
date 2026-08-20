@@ -16,6 +16,22 @@ const config: Config = {
         mono: ['var(--font-geist-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: {
+        /* Driven by CSS variables and flipped end-for-end in `.dark`, so
+           every existing zinc utility (text, bg, border, ring) becomes
+           theme-aware without a single `dark:` variant in the components. */
+        zinc: {
+          50: 'hsl(var(--z-50) / <alpha-value>)',
+          100: 'hsl(var(--z-100) / <alpha-value>)',
+          200: 'hsl(var(--z-200) / <alpha-value>)',
+          300: 'hsl(var(--z-300) / <alpha-value>)',
+          400: 'hsl(var(--z-400) / <alpha-value>)',
+          500: 'hsl(var(--z-500) / <alpha-value>)',
+          600: 'hsl(var(--z-600) / <alpha-value>)',
+          700: 'hsl(var(--z-700) / <alpha-value>)',
+          800: 'hsl(var(--z-800) / <alpha-value>)',
+          900: 'hsl(var(--z-900) / <alpha-value>)',
+          950: 'hsl(var(--z-950) / <alpha-value>)',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

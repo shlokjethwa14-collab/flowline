@@ -1,4 +1,12 @@
-import { CalendarCheck, ClipboardList, LayoutGrid, MoonStar, Network, type LucideIcon } from 'lucide-react'
+import {
+  CalendarCheck,
+  CalendarRange,
+  ClipboardList,
+  LayoutGrid,
+  MoonStar,
+  Network,
+  type LucideIcon,
+} from 'lucide-react'
 import type { Role } from '@/lib/types'
 
 export interface NavItem {
@@ -14,6 +22,18 @@ const ADMIN_NAV: NavItem[] = [
     label: 'Team Flow',
     description: 'Who reports to whom, and what each person is carrying.',
     icon: Network,
+  },
+  {
+    href: '/my-day',
+    label: 'My Work',
+    description: 'Your own jobs — growth, meetings and operations.',
+    icon: CalendarCheck,
+  },
+  {
+    href: '/calendar',
+    label: 'Calendar',
+    description: 'Your month, or anyone else’s.',
+    icon: CalendarRange,
   },
   {
     href: '/assign',
@@ -41,6 +61,12 @@ const EMPLOYEE_NAV: NavItem[] = [
     label: 'My Day',
     description: 'Just what you need to finish today.',
     icon: CalendarCheck,
+  },
+  {
+    href: '/calendar',
+    label: 'Calendar',
+    description: 'Meetings, deadlines and trips.',
+    icon: CalendarRange,
   },
   {
     href: '/all-work',

@@ -22,6 +22,7 @@ import { useCurrentUser } from '@/hooks/use-flowline'
 import { resetDemo, toggleDemoRole } from '@/lib/demo/store'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/store/ui'
+import { ThemeToggle } from './theme-toggle'
 
 function GlobalSearch() {
   const router = useRouter()
@@ -201,6 +202,7 @@ export function Topbar() {
         <GlobalSearch />
 
         <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
           {isDemo && <DemoRoleSwitch />}
 
           {/* Quick Add creates work, so only an admin ever sees it. */}

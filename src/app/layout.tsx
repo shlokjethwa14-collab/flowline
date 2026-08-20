@@ -3,6 +3,7 @@ import { GeistMono } from 'geist/font/mono'
 import { GeistSans } from 'geist/font/sans'
 import type { ReactNode } from 'react'
 import { QueryProvider } from '@/components/providers/query-provider'
+import { ThemeProvider, THEME_INIT_SCRIPT } from '@/components/providers/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import './globals.css'
@@ -28,13 +29,20 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Sets the theme class before first paint — no flash of the wrong
+            theme on load or on a hard refresh. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="font-sans">
-        <QueryProvider>
-          <TooltipProvider delayDuration={220} skipDelayDuration={280}>
-            {children}
-            <Toaster />
-          </TooltipProvider>
-        </QueryProvider>
+        <ThemeProvider>
+          <QueryProvider>
+            <TooltipProvider delayDuration={220} skipDelayDuration={280}>
+              {children}
+              <Toaster />
+            </TooltipProvider>
+          </QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

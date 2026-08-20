@@ -6,65 +6,168 @@
    Flowline — Liquid Glass
    ---------------------------------------------------------------------
    Rule 1  Edge discipline. Blur is not an edge. Every glass surface
-           carries three cues: an outer border that separates it from the
+           carries three cues: an outer ring that separates it from the
            background, a specular highlight where light catches the bevel,
            and an inner stroke that implies thickness. `.glass` applies all
-           three, so a surface cannot accidentally ship without them.
+           three, so a surface cannot ship without them.
    Rule 2  Thickness before opacity. Depth comes from layered strokes and
-           a shaded lower body, not from making the fill more opaque.
-   Rule 3  Colour blooms, it does not flood. Accents glow outward from
-           behind a control; the glass itself stays near-white.
+           a shaded lower body, not from a more opaque fill.
+   Rule 3  Colour blooms, it does not flood. Accents glow from behind a
+           control; the glass itself stays near-neutral.
+
+   Dark mode re-tunes every cue rather than dropping any. The neutral ramp
+   is driven by CSS variables, so `text-zinc-900` and friends invert
+   automatically and components need no dark: variants.
    ===================================================================== */
 
 @layer base {
   :root {
+    color-scheme: light;
+
     --background: 0 0% 100%;
     --foreground: 225 15% 9%;
-
     --card: 0 0% 100%;
     --card-foreground: 225 15% 9%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 225 15% 9%;
-
     --primary: 250 84% 62%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 225 12% 96%;
     --secondary-foreground: 225 12% 22%;
-
     --muted: 225 12% 96%;
     --muted-foreground: 225 8% 46%;
-
     --accent: 250 60% 96%;
     --accent-foreground: 250 60% 35%;
-
     --destructive: 4 74% 54%;
     --destructive-foreground: 0 0% 100%;
-
     --border: 225 14% 90%;
     --input: 225 14% 90%;
     --ring: 250 84% 62%;
-
     --radius: 1rem;
 
-    /* --- Edge discipline tokens --------------------------------------
-       Tuned together. Raising the fill without raising the rim is what
-       makes glass look like flat frosting. */
-    --edge-outer: 225 20% 62%;      /* cool ring that separates from bg  */
-    --edge-outer-a: 0.26;
-    --edge-rim: 255 255 255;        /* specular highlight                */
-    --edge-inner-a: 0.62;           /* inner thickness stroke            */
-    --glass-fill-top: 0.94;
-    --glass-fill-bottom: 0.66;
+    /* --- Neutral ramp. Inverted wholesale in dark. ------------------ */
+    --z-50: 0 0% 98%;
+    --z-100: 240 5% 96%;
+    --z-200: 240 6% 90%;
+    --z-300: 240 5% 84%;
+    --z-400: 240 5% 65%;
+    --z-500: 240 4% 46%;
+    --z-600: 240 5% 34%;
+    --z-700: 240 5% 26%;
+    --z-800: 240 4% 16%;
+    --z-900: 240 6% 10%;
+    --z-950: 240 10% 4%;
+
+    /* --- Edge discipline -------------------------------------------- */
+    --g-fill-top: rgb(255 255 255 / 0.94);
+    --g-fill-mid: rgb(252 253 255 / 0.8);
+    --g-fill-bot: rgb(246 248 252 / 0.66);
+
+    --g-ring: hsl(225 20% 62% / 0.26);
+    --g-ring-strong: hsl(225 20% 62% / 0.36);
+
+    --g-rim-1: rgb(255 255 255 / 1);
+    --g-rim-2: rgb(255 255 255 / 0.62);
+    --g-rim-3: rgb(255 255 255 / 0.08);
+    --g-rim-4: hsl(225 20% 62% / 0.16);
+    --g-rim-5: rgb(255 255 255 / 0.5);
+    --g-rim-6: rgb(255 255 255 / 0.88);
+
+    --g-inner: rgb(255 255 255 / 0.62);
+    --g-inner-top: rgb(255 255 255 / 0.9);
+    --g-spec: rgb(255 255 255 / 1);
+
+    --g-sh-1: hsl(225 30% 20% / 0.05);
+    --g-sh-2: hsl(225 30% 20% / 0.1);
+    --g-sh-3: hsl(225 30% 20% / 0.18);
+    --g-body: hsl(225 30% 40% / 0.24);
+    --g-bot: hsl(225 20% 70% / 0.22);
+
+    --g-well-a: hsl(225 16% 94% / 0.92);
+    --g-well-b: hsl(225 16% 97% / 0.66);
+    --g-well-sh: hsl(225 30% 30% / 0.09);
+
     --glass-blur: 26px;
     --glass-sat: 190%;
 
-    /* Iridescence used along rims and behind accents. */
-    --iris-1: 199 92% 74%;   /* cyan   */
-    --iris-2: 250 84% 72%;   /* violet */
-    --iris-3: 162 72% 68%;   /* teal   */
-    --iris-4: 24 94% 68%;    /* amber  */
+    --iris-1: 199 92% 74%;
+    --iris-2: 250 84% 72%;
+    --iris-3: 162 72% 68%;
+    --iris-4: 24 94% 68%;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    --background: 225 20% 7%;
+    --foreground: 225 20% 96%;
+    --card: 225 18% 11%;
+    --card-foreground: 225 20% 96%;
+    --popover: 225 18% 11%;
+    --popover-foreground: 225 20% 96%;
+    --primary: 252 92% 72%;
+    --primary-foreground: 252 40% 10%;
+    --secondary: 225 14% 18%;
+    --secondary-foreground: 225 16% 92%;
+    --muted: 225 14% 18%;
+    --muted-foreground: 225 9% 64%;
+    --accent: 250 40% 22%;
+    --accent-foreground: 250 80% 88%;
+    --destructive: 4 78% 62%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 225 12% 22%;
+    --input: 225 12% 22%;
+    --ring: 252 92% 72%;
+
+    /* The ramp flips end for end, cooled slightly to sit with the glass. */
+    --z-50: 225 16% 12%;
+    --z-100: 225 14% 16%;
+    --z-200: 225 12% 23%;
+    --z-300: 225 10% 33%;
+    --z-400: 225 8% 56%;
+    --z-500: 225 9% 67%;
+    --z-600: 225 12% 77%;
+    --z-700: 225 14% 85%;
+    --z-800: 225 16% 91%;
+    --z-900: 225 20% 96%;
+    --z-950: 0 0% 100%;
+
+    /* Same three cues, re-tuned. The rim is dimmer but never absent —
+       without it dark glass collapses into a flat grey rectangle. */
+    --g-fill-top: rgb(38 42 58 / 0.82);
+    --g-fill-mid: rgb(30 34 48 / 0.7);
+    --g-fill-bot: rgb(22 25 37 / 0.62);
+
+    --g-ring: hsl(225 40% 3% / 0.7);
+    --g-ring-strong: hsl(225 40% 3% / 0.85);
+
+    --g-rim-1: rgb(255 255 255 / 0.34);
+    --g-rim-2: rgb(255 255 255 / 0.18);
+    --g-rim-3: rgb(255 255 255 / 0.03);
+    --g-rim-4: hsl(225 20% 8% / 0.3);
+    --g-rim-5: rgb(255 255 255 / 0.12);
+    --g-rim-6: rgb(255 255 255 / 0.26);
+
+    --g-inner: rgb(255 255 255 / 0.1);
+    --g-inner-top: rgb(255 255 255 / 0.16);
+    --g-spec: rgb(255 255 255 / 0.3);
+
+    --g-sh-1: hsl(225 50% 2% / 0.4);
+    --g-sh-2: hsl(225 50% 2% / 0.5);
+    --g-sh-3: hsl(225 50% 2% / 0.6);
+    --g-body: hsl(225 60% 2% / 0.5);
+    --g-bot: hsl(225 20% 4% / 0.5);
+
+    --g-well-a: hsl(225 22% 9% / 0.9);
+    --g-well-b: hsl(225 20% 13% / 0.7);
+    --g-well-sh: hsl(225 60% 2% / 0.55);
+
+    --glass-sat: 150%;
+
+    --iris-1: 199 88% 62%;
+    --iris-2: 252 88% 70%;
+    --iris-3: 162 66% 56%;
+    --iris-4: 24 90% 62%;
   }
 
   * {
@@ -82,8 +185,7 @@
     min-height: 100dvh;
   }
 
-  /* The room the glass sits in: cool silver, faint iridescence at the
-     corners so rims have something to pick up. */
+  /* The room the glass sits in. */
   body::before {
     content: '';
     position: fixed;
@@ -96,7 +198,14 @@
       linear-gradient(178deg, #ffffff 0%, #f7f8fb 44%, #eff1f6 100%);
   }
 
-  /* Fine grain so the large flat areas do not band. */
+  .dark body::before {
+    background:
+      radial-gradient(1200px 680px at 8% -10%, hsl(var(--iris-2) / 0.22), transparent 60%),
+      radial-gradient(980px 620px at 94% 2%, hsl(var(--iris-1) / 0.16), transparent 58%),
+      radial-gradient(820px 760px at 58% 112%, hsl(var(--iris-3) / 0.12), transparent 62%),
+      linear-gradient(178deg, hsl(225 24% 9%) 0%, hsl(225 22% 7%) 46%, hsl(225 26% 5%) 100%);
+  }
+
   body::after {
     content: '';
     position: fixed;
@@ -107,13 +216,17 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
   }
 
+  .dark body::after {
+    opacity: 0.16;
+  }
+
   ::selection {
-    background: hsl(var(--primary) / 0.16);
+    background: hsl(var(--primary) / 0.24);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: hsl(225 10% 60% / 0.3) transparent;
+    scrollbar-color: hsl(var(--z-400) / 0.4) transparent;
   }
   *::-webkit-scrollbar {
     width: 10px;
@@ -123,13 +236,13 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background-color: hsl(225 10% 60% / 0.28);
+    background-color: hsl(var(--z-400) / 0.38);
     border-radius: 9999px;
     border: 3px solid transparent;
     background-clip: content-box;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(225 10% 50% / 0.48);
+    background-color: hsl(var(--z-400) / 0.6);
   }
 
   :focus-visible {
@@ -140,40 +253,29 @@
 
 @layer components {
   /* ==================================================================
-     1. THE GLASS SURFACE
-     `.glass` is the only way to make glass. It always ships all three
-     edge cues, so "blur with no edge" is not reachable by accident.
+     1. THE GLASS SURFACE — all three cues, always.
      ================================================================== */
 
   .glass {
     position: relative;
     isolation: isolate;
-    background:
-      linear-gradient(
-        176deg,
-        rgb(255 255 255 / var(--glass-fill-top)) 0%,
-        rgb(252 253 255 / 0.8) 46%,
-        rgb(246 248 252 / var(--glass-fill-bottom)) 100%
-      );
+    background: linear-gradient(176deg, var(--g-fill-top) 0%, var(--g-fill-mid) 46%, var(--g-fill-bot) 100%);
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
     box-shadow:
-      /* cue 1 — outer ring: the separation the blur cannot provide */
-      0 0 0 0.5px hsl(var(--edge-outer) / var(--edge-outer-a)),
-      /* cast shadow, three tiers so the falloff reads as real */
-      0 1px 1.5px hsl(225 30% 20% / 0.05),
-      0 6px 16px -6px hsl(225 30% 20% / 0.1),
-      0 22px 48px -18px hsl(225 30% 20% / 0.18),
-      /* cue 2 — top specular, the bevel catching light */
-      inset 0 1px 0 rgb(var(--edge-rim) / 1),
-      /* body shading: glass is thicker at the bottom */
-      inset 0 -10px 18px -14px hsl(225 30% 40% / 0.24),
-      inset 0 -1px 0 hsl(225 20% 70% / 0.22);
+      /* cue 1 — outer ring */
+      0 0 0 0.5px var(--g-ring),
+      0 1px 1.5px var(--g-sh-1),
+      0 6px 16px -6px var(--g-sh-2),
+      0 22px 48px -18px var(--g-sh-3),
+      /* cue 2 — top specular */
+      inset 0 1px 0 var(--g-spec),
+      /* body shading */
+      inset 0 -10px 18px -14px var(--g-body),
+      inset 0 -1px 0 var(--g-bot);
   }
 
-  /* cue 2 continued — the rim gradient. Bright at the top-left curve,
-     dimming through the middle, picking back up at the lower-right, the
-     way a real bevel behaves under a single light. */
+  /* cue 2 continued — the rim gradient. */
   .glass::before {
     content: '';
     position: absolute;
@@ -183,12 +285,12 @@
     padding: 1px;
     background: linear-gradient(
       148deg,
-      rgb(255 255 255 / 1) 0%,
-      rgb(255 255 255 / 0.62) 16%,
-      rgb(255 255 255 / 0.08) 37%,
-      hsl(var(--edge-outer) / 0.16) 58%,
-      rgb(255 255 255 / 0.5) 84%,
-      rgb(255 255 255 / 0.88) 100%
+      var(--g-rim-1) 0%,
+      var(--g-rim-2) 16%,
+      var(--g-rim-3) 37%,
+      var(--g-rim-4) 58%,
+      var(--g-rim-5) 84%,
+      var(--g-rim-6) 100%
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -198,8 +300,7 @@
     pointer-events: none;
   }
 
-  /* cue 3 — inner stroke, set in from the rim. This is the single line
-     that sells thickness; without it the panel reads as a printed shape. */
+  /* cue 3 — inner stroke, set in from the rim. */
   .glass::after {
     content: '';
     position: absolute;
@@ -207,56 +308,48 @@
     z-index: 1;
     border-radius: inherit;
     box-shadow:
-      inset 0 0 0 1px rgb(255 255 255 / var(--edge-inner-a)),
-      inset 0 1px 1px rgb(255 255 255 / 0.9);
+      inset 0 0 0 1px var(--g-inner),
+      inset 0 1px 1px var(--g-inner-top);
     pointer-events: none;
   }
 
-  /* Small controls: same three cues, dialled down so they do not shout. */
   .glass-thin {
     --glass-blur: 16px;
-    --edge-inner-a: 0.44;
-  }
-  .glass-thin {
     box-shadow:
-      0 0 0 0.5px hsl(var(--edge-outer) / 0.22),
-      0 1px 1px hsl(225 30% 20% / 0.04),
-      0 3px 8px -3px hsl(225 30% 20% / 0.09),
-      inset 0 1px 0 rgb(255 255 255 / 0.96),
-      inset 0 -1px 0 hsl(225 20% 70% / 0.18);
+      0 0 0 0.5px var(--g-ring),
+      0 1px 1px var(--g-sh-1),
+      0 3px 8px -3px var(--g-sh-2),
+      inset 0 1px 0 var(--g-spec),
+      inset 0 -1px 0 var(--g-bot);
   }
 
-  /* Major panels: an extra offset plate behind the surface, which is what
-     reads as a slab of glass rather than a card. */
   .glass-thick {
     --glass-blur: 32px;
     box-shadow:
-      0 0 0 0.5px hsl(var(--edge-outer) / 0.3),
-      0 1px 1.5px hsl(225 30% 20% / 0.05),
-      0 8px 20px -8px hsl(225 30% 20% / 0.12),
-      0 30px 64px -22px hsl(225 30% 20% / 0.22),
-      0 2px 0 -1px rgb(255 255 255 / 0.7),
-      inset 0 1.5px 0 rgb(255 255 255 / 1),
-      inset 0 -14px 26px -20px hsl(225 30% 40% / 0.3),
-      inset 0 -1px 0 hsl(225 20% 70% / 0.26);
+      0 0 0 0.5px var(--g-ring-strong),
+      0 1px 1.5px var(--g-sh-1),
+      0 8px 20px -8px var(--g-sh-2),
+      0 30px 64px -22px var(--g-sh-3),
+      0 2px 0 -1px var(--g-rim-5),
+      inset 0 1.5px 0 var(--g-spec),
+      inset 0 -14px 26px -20px var(--g-body),
+      inset 0 -1px 0 var(--g-bot);
   }
 
-  /* An iridescent rim, for hero surfaces only. */
   .glass-iris::before {
     background: linear-gradient(
       148deg,
-      rgb(255 255 255 / 1) 0%,
+      var(--g-rim-1) 0%,
       hsl(var(--iris-1) / 0.5) 18%,
-      rgb(255 255 255 / 0.1) 38%,
+      var(--g-rim-3) 38%,
       hsl(var(--iris-2) / 0.36) 58%,
       hsl(var(--iris-3) / 0.42) 78%,
-      rgb(255 255 255 / 0.9) 100%
+      var(--g-rim-6) 100%
     );
     background-size: 220% 220%;
     animation: iridesce 14s ease-in-out infinite;
   }
 
-  /* Kept for compatibility — `.glass` already carries the edge cues. */
   .glass-edge {
     position: relative;
   }
@@ -273,18 +366,16 @@
       box-shadow 0.42s cubic-bezier(0.32, 0.72, 0, 1);
   }
 
-  /* Hover lifts the card and firms up every edge cue at once — rim
-     brightens, ring darkens, shadow deepens. */
   .glass-card-hover:hover {
     transform: translate3d(0, -4px, 0);
     box-shadow:
-      0 0 0 0.5px hsl(var(--edge-outer) / 0.36),
-      0 2px 3px hsl(225 30% 20% / 0.06),
-      0 14px 30px -8px hsl(225 30% 20% / 0.16),
-      0 38px 72px -24px hsl(225 30% 20% / 0.26),
-      inset 0 1.5px 0 rgb(255 255 255 / 1),
-      inset 0 -12px 22px -16px hsl(225 30% 40% / 0.26),
-      inset 0 -1px 0 hsl(225 20% 70% / 0.26);
+      0 0 0 0.5px var(--g-ring-strong),
+      0 2px 3px var(--g-sh-1),
+      0 14px 30px -8px var(--g-sh-2),
+      0 38px 72px -24px var(--g-sh-3),
+      inset 0 1.5px 0 var(--g-spec),
+      inset 0 -12px 22px -16px var(--g-body),
+      inset 0 -1px 0 var(--g-bot);
   }
 
   .glass-card-hover:active {
@@ -310,13 +401,11 @@
     transform: translateY(-1px);
   }
 
-  /* The squish. Fast on the way down, springy on the way back. */
   .btn-3d:active:not(:disabled) {
     transform: translateY(0.5px) scale(0.972);
     transition-duration: 0.09s;
   }
 
-  /* Light travelling across the face on hover. */
   .btn-3d::after {
     content: '';
     position: absolute;
@@ -335,9 +424,6 @@
     animation: specular 1.15s cubic-bezier(0.32, 0.72, 0, 1);
   }
 
-  /* --- Colour bloom -------------------------------------------------
-     An accent glows from behind the control. The glass stays near-white;
-     only the light is coloured. */
   .bloom-host {
     position: relative;
   }
@@ -360,35 +446,27 @@
   }
 
   /* ==================================================================
-     3. RECESSED SURFACES
-     Wells are the inverse of glass: the light sits on the outside.
+     3. RECESSED SURFACES — the inverse of glass.
      ================================================================== */
 
   .inset-well {
-    background: linear-gradient(180deg, hsl(225 16% 94% / 0.92), hsl(225 16% 97% / 0.66));
+    background: linear-gradient(180deg, var(--g-well-a), var(--g-well-b));
     box-shadow:
-      inset 0 1.5px 3px hsl(225 30% 30% / 0.09),
-      inset 0 0 0 0.5px hsl(var(--edge-outer) / 0.14),
-      0 1px 0 rgb(255 255 255 / 0.9);
+      inset 0 1.5px 3px var(--g-well-sh),
+      inset 0 0 0 0.5px var(--g-ring),
+      0 1px 0 var(--g-rim-5);
   }
 
   .hairline {
-    background: linear-gradient(
-      90deg,
-      transparent,
-      hsl(var(--edge-outer) / 0.3) 18%,
-      hsl(var(--edge-outer) / 0.3) 82%,
-      transparent
-    );
+    background: linear-gradient(90deg, transparent, var(--g-ring-strong) 18%, var(--g-ring-strong) 82%, transparent);
   }
 
-  /* Skeletons occupy the final layout box, so nothing shifts on swap. */
   .skeleton {
     position: relative;
     overflow: hidden;
     border-radius: 0.7rem;
-    background: linear-gradient(180deg, hsl(225 16% 93% / 0.95), hsl(225 16% 96% / 0.8));
-    box-shadow: inset 0 0 0 0.5px hsl(var(--edge-outer) / 0.12);
+    background: linear-gradient(180deg, var(--g-well-a), var(--g-well-b));
+    box-shadow: inset 0 0 0 0.5px var(--g-ring);
   }
 
   .skeleton::after {
@@ -396,7 +474,7 @@
     position: absolute;
     inset: 0;
     transform: translateX(-100%);
-    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.78), transparent);
+    background: linear-gradient(90deg, transparent, var(--g-rim-2), transparent);
     animation: shimmer 1.7s infinite;
   }
 
@@ -410,18 +488,12 @@
   }
 
   .org-line {
-    background: linear-gradient(180deg, hsl(var(--edge-outer) / 0.55), hsl(var(--edge-outer) / 0.22));
+    background: linear-gradient(180deg, hsl(var(--z-400) / 0.6), hsl(var(--z-400) / 0.24));
   }
   .org-line-h {
-    background: linear-gradient(
-      90deg,
-      hsl(var(--edge-outer) / 0.22),
-      hsl(var(--edge-outer) / 0.55),
-      hsl(var(--edge-outer) / 0.22)
-    );
+    background: linear-gradient(90deg, hsl(var(--z-400) / 0.24), hsl(var(--z-400) / 0.6), hsl(var(--z-400) / 0.24));
   }
 
-  /* Staggered entrance. Apple never reveals a grid all at once. */
   .stagger > * {
     animation: lift-in 0.62s cubic-bezier(0.32, 0.72, 0, 1) both;
   }
@@ -452,16 +524,19 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  /* Sets the bloom colour for `.bloom-host`. */
   .bloom-primary { --bloom: hsl(var(--primary) / 0.55); }
   .bloom-cyan { --bloom: hsl(var(--iris-1) / 0.6); }
   .bloom-teal { --bloom: hsl(var(--iris-3) / 0.6); }
   .bloom-amber { --bloom: hsl(var(--iris-4) / 0.6); }
   .bloom-rose { --bloom: hsl(348 84% 70% / 0.55); }
+  /* Suppresses transitions while the theme flips, so nothing smears. */
+  .theme-switching * {
+    transition: none !important;
+  }
 }
 
-/* Honour the OS setting: keep every layout and edge cue, drop the motion.
-   Edge discipline is information, not decoration — it never animates away. */
+/* Honour the OS setting: drop motion, keep every edge cue. The edges are
+   information, not decoration. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

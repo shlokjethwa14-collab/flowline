@@ -1,6 +1,7 @@
 'use client'
 
-import { CheckCircle2, ListChecks, PartyPopper, Sunrise } from 'lucide-react'
+import { CalendarRange, CheckCircle2, ListChecks, PartyPopper, Sunrise } from 'lucide-react'
+import Link from 'next/link'
 import { useMemo } from 'react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { PageHeader } from '@/components/shared/page-header'
@@ -22,10 +23,17 @@ function isOnMyDay(task: Task): boolean {
 }
 
 export default function MyDayPage() {
-  const { profile, isLoading: userLoading } = useCurrentUser()
+  const { profile, isAdmin, isLoading: userLoading } = useCurrentUser()
   const { tasks, isLoading } = useVisibleTasks()
 
-  const dayTasks = useMemo(() => tasks.filter(isOnMyDay), [tasks])
+  // This screen is always personal. For an admin `useVisibleTasks` returns the
+  // whole company, so narrow to what they actually own themselves.
+  const mine = useMemo(
+    () => (profile ? tasks.filter((t) => t.assigned_to === profile.id) : []),
+    [tasks, profile],
+  )
+
+  const dayTasks = useMemo(() => mine.filter(isOnMyDay), [mine])
 
   const stats = useMemo(() => {
     const total = dayTasks.length
@@ -48,6 +56,16 @@ export default function MyDayPage() {
       checklistTotals,
     }
   }, [dayTasks])
+
+  /** Everything of mine still open, regardless of date — the forward look. */
+  const upcoming = useMemo(
+    () =>
+      mine
+        .filter((t) => t.status !== 'done' && t.due_date && new Date(t.due_date).getTime() > Date.now())
+        .sort((a, b) => new Date(a.due_date ?? 0).getTime() - new Date(b.due_date ?? 0).getTime())
+        .slice(0, 5),
+    [mine],
+  )
 
   const groups = useMemo(
     () =>
@@ -74,7 +92,7 @@ export default function MyDayPage() {
     <div className="space-y-7">
       <PageHeader
         title={`Good day, ${firstName}`}
-        description={`${formatFriendlyDay(todayKey())} — here is everything that needs you. Tap any job to open it.`}
+        description={`${formatFriendlyDay(todayKey())} — ${isAdmin ? 'the work you are carrying yourself' : 'here is everything that needs you'}. Tap any job to open it.`}
       />
 
       {/* Day progress */}
@@ -182,6 +200,30 @@ export default function MyDayPage() {
             )
           })}
         </div>
+      )}
+
+      {/* What is coming — the forward look, so today is not the whole world. */}
+      {!loading && upcoming.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.011em] text-zinc-800">
+              <CalendarRange className="h-4 w-4 text-zinc-400" strokeWidth={1.9} />
+              Coming up
+            </h2>
+            <Badge variant="outline">next {upcoming.length}</Badge>
+            <Link
+              href="/calendar"
+              className="ml-auto text-[12.5px] font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Open calendar
+            </Link>
+          </div>
+          <div className="grid gap-3 stagger md:grid-cols-2 xl:grid-cols-3">
+            {upcoming.map((task) => (
+              <TaskCard key={task.id} task={task} showAssignee={false} />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   )
