@@ -1,0 +1,188 @@
+'use client'
+
+import { CheckCircle2, ListChecks, PartyPopper, Sunrise } from 'lucide-react'
+import { useMemo } from 'react'
+import { EmptyState } from '@/components/shared/empty-state'
+import { PageHeader } from '@/components/shared/page-header'
+import { StatCard, StatCardSkeleton } from '@/components/shared/stat-card'
+import { TaskCard, TaskCardSkeleton } from '@/components/tasks/task-card'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { useCurrentUser, useVisibleTasks } from '@/hooks/use-flowline'
+import { MY_DAY_GROUPS } from '@/lib/task-meta'
+import type { Task } from '@/lib/types'
+import { checklistProgress, formatFriendlyDay, isOverdue, isSameDay, todayKey } from '@/lib/utils'
+
+/** Today's work plus anything still unfinished from before. */
+function isOnMyDay(task: Task): boolean {
+  if (task.status === 'done') return isSameDay(task.completed_at ?? task.due_date, new Date())
+  if (isOverdue(task)) return true
+  if (!task.due_date) return isSameDay(task.created_at, new Date())
+  return isSameDay(task.due_date, new Date())
+}
+
+export default function MyDayPage() {
+  const { profile, isLoading: userLoading } = useCurrentUser()
+  const { tasks, isLoading } = useVisibleTasks()
+
+  const dayTasks = useMemo(() => tasks.filter(isOnMyDay), [tasks])
+
+  const stats = useMemo(() => {
+    const total = dayTasks.length
+    const done = dayTasks.filter((t) => t.status === 'done').length
+    const overdue = dayTasks.filter((t) => isOverdue(t)).length
+    const blocked = dayTasks.filter((t) => t.is_blocked).length
+    const checklistTotals = dayTasks.reduce(
+      (acc, t) => {
+        const p = checklistProgress(t.checklist)
+        return { done: acc.done + p.done, total: acc.total + p.total }
+      },
+      { done: 0, total: 0 },
+    )
+    return {
+      total,
+      done,
+      overdue,
+      blocked,
+      percent: total === 0 ? 0 : Math.round((done / total) * 100),
+      checklistTotals,
+    }
+  }, [dayTasks])
+
+  const groups = useMemo(
+    () =>
+      MY_DAY_GROUPS.map((group) => ({
+        ...group,
+        tasks: dayTasks
+          .filter((t) => group.types.includes(t.task_type))
+          .sort((a, b) => {
+            // Unfinished first, then by deadline.
+            if ((a.status === 'done') !== (b.status === 'done')) return a.status === 'done' ? 1 : -1
+            const aDue = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY
+            const bDue = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY
+            return aDue - bDue
+          }),
+      })),
+    [dayTasks],
+  )
+
+  const firstName = profile?.full_name.split(' ')[0] ?? 'there'
+  const everythingDone = stats.total > 0 && stats.done === stats.total
+  const loading = isLoading || userLoading
+
+  return (
+    <div className="space-y-7">
+      <PageHeader
+        title={`Good day, ${firstName}`}
+        description={`${formatFriendlyDay(todayKey())} — here is everything that needs you. Tap any job to open it.`}
+      />
+
+      {/* Day progress */}
+      {loading ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <StatCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-3 stagger sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Day progress"
+            value={`${stats.percent}%`}
+            icon={CheckCircle2}
+            tone={everythingDone ? 'success' : 'primary'}
+            percent={stats.percent}
+            hint={`${stats.done} of ${stats.total} finished`}
+          />
+          <StatCard
+            label="Checklist steps"
+            value={`${stats.checklistTotals.done}/${stats.checklistTotals.total}`}
+            icon={ListChecks}
+            tone="neutral"
+            hint="Small steps ticked off today"
+          />
+          <StatCard
+            label="Overdue"
+            value={stats.overdue}
+            icon={Sunrise}
+            tone={stats.overdue > 0 ? 'warning' : 'neutral'}
+            hint={stats.overdue > 0 ? 'Left over from earlier — clear these first' : 'Nothing left over'}
+          />
+          <StatCard
+            label="Blocked"
+            value={stats.blocked}
+            icon={PartyPopper}
+            tone={stats.blocked > 0 ? 'danger' : 'neutral'}
+            hint={stats.blocked > 0 ? 'Waiting on someone else' : 'Nothing is stuck'}
+          />
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-6">
+          {Array.from({ length: 2 }).map((_, groupIndex) => (
+            <section key={groupIndex} className="space-y-3">
+              <div className="skeleton h-4 w-28" />
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <TaskCardSkeleton />
+                <TaskCardSkeleton />
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : stats.total === 0 ? (
+        <EmptyState
+          icon={Sunrise}
+          title="Nothing on your plate today"
+          description="No work is due today and nothing is left over. If something comes up, it will appear here straight away."
+          className="mt-4"
+        />
+      ) : everythingDone ? (
+        <EmptyState
+          icon={PartyPopper}
+          tone="success"
+          title="Everything is finished — well done"
+          description={`All ${stats.total} jobs for today are closed. Anything new that comes in will show up here.`}
+          className="mt-4"
+        />
+      ) : (
+        <div className="space-y-7">
+          {groups.map((group) => {
+            if (group.tasks.length === 0) return null
+            const Icon = group.icon
+            const groupDone = group.tasks.filter((t) => t.status === 'done').length
+            const groupPercent = Math.round((groupDone / group.tasks.length) * 100)
+
+            return (
+              <section key={group.key} className="space-y-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-zinc-800">
+                    <Icon className="h-4 w-4 text-zinc-400" strokeWidth={1.9} />
+                    {group.label}
+                  </h2>
+                  <Badge variant={groupPercent === 100 ? 'success' : 'default'}>
+                    {groupDone}/{group.tasks.length} done
+                  </Badge>
+                  <div className="ml-auto hidden w-40 sm:block">
+                    <Progress
+                      value={groupPercent}
+                      complete={groupPercent >= 100}
+                      className="h-1.5"
+                      aria-label={`${group.label}: ${groupDone} of ${group.tasks.length} finished`}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 stagger md:grid-cols-2 xl:grid-cols-3">
+                  {group.tasks.map((task) => (
+                    <TaskCard key={task.id} task={task} showAssignee={false} />
+                  ))}
+                </div>
+              </section>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
