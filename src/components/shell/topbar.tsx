@@ -187,7 +187,7 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-20 px-3 pt-3 lg:px-6">
-      <div className="glass glass-edge flex h-14 items-center gap-2 rounded-2xl px-2.5 sm:gap-3 sm:px-3.5">
+      <div className="glass glass-thick flex h-14 items-center gap-2 rounded-2xl px-2.5 sm:gap-3 sm:px-3.5">
         <Button
           variant="ghost"
           size="icon-sm"

@@ -17,8 +17,9 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-zinc-950/25 backdrop-blur-[3px]',
+      'fixed inset-0 z-50 bg-[hsl(225_30%_16%/0.28)] backdrop-blur-[6px] backdrop-saturate-125',
       'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      'ease-apple data-[state=open]:[animation-duration:380ms] data-[state=closed]:[animation-duration:220ms]',
       className,
     )}
     {...props}
@@ -36,11 +37,12 @@ const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-5 p-6',
-        'glass glass-edge rounded-2xl shadow-glass-lg',
+        'glass glass-thick rounded-3xl',
         'max-h-[92dvh] overflow-y-auto',
-        'duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-top-[2%] data-[state=open]:slide-in-from-top-[2%]',
+        'ease-apple data-[state=open]:[animation-duration:420ms] data-[state=closed]:[animation-duration:220ms]',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-top-[1.5%] data-[state=open]:slide-in-from-top-[1.5%]',
         // Full-width sheet-style on phones.
-        'max-sm:bottom-0 max-sm:left-0 max-sm:top-auto max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-3xl max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=open]:slide-in-from-bottom',
+        'max-sm:bottom-0 max-sm:left-0 max-sm:top-auto max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-[28px] max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=open]:slide-in-from-bottom',
         className,
       )}
       {...props}

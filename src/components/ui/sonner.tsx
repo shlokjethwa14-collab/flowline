@@ -13,8 +13,7 @@ export function Toaster(props: ToasterProps) {
       closeButton
       toastOptions={{
         classNames: {
-          toast:
-            'group glass glass-edge !rounded-2xl !shadow-glass-lg !border-white/90 !text-zinc-800 !text-[13.5px] !gap-3 !p-4',
+          toast: 'group glass glass-thick !rounded-2xl !border-0 !text-zinc-800 !text-[13.5px] !gap-3 !p-4',
           title: '!font-semibold !text-zinc-900',
           description: '!text-zinc-500 !text-[12.5px] !leading-relaxed',
           actionButton: '!bg-primary !text-white !rounded-lg !text-[12px]',

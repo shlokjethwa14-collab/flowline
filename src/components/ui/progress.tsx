@@ -6,10 +6,14 @@ import { cn } from '@/lib/utils'
 
 interface ProgressProps extends React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root> {
   value?: number
-  /** Colours the fill green once everything is finished. */
+  /** Switches the fill to green once everything is finished. */
   complete?: boolean
 }
 
+/**
+ * A lit bar sitting in a recessed track. The fill carries its own glow so it
+ * reads as backlit glass rather than a painted rectangle.
+ */
 const Progress = React.forwardRef<React.ElementRef<typeof ProgressPrimitive.Root>, ProgressProps>(
   ({ className, value = 0, complete = false, ...props }, ref) => {
     const clamped = Math.min(100, Math.max(0, value))
@@ -22,10 +26,11 @@ const Progress = React.forwardRef<React.ElementRef<typeof ProgressPrimitive.Root
       >
         <ProgressPrimitive.Indicator
           className={cn(
-            'h-full w-full flex-1 rounded-full transition-transform duration-700 ease-spring',
+            'h-full w-full flex-1 rounded-full',
+            'transition-transform duration-glass ease-apple',
             complete
-              ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 shadow-[0_0_10px_rgba(16,185,129,.45)]'
-              : 'bg-gradient-to-r from-[hsl(250_84%_70%)] to-[hsl(250_84%_58%)] shadow-[0_0_10px_rgba(109,88,240,.35)]',
+              ? 'bg-[linear-gradient(90deg,hsl(160_74%_56%),hsl(152_70%_45%))] shadow-[0_0_12px_hsl(155_72%_50%/0.55),inset_0_1px_0_rgb(255_255_255/0.45)]'
+              : 'bg-[linear-gradient(90deg,hsl(199_92%_68%),hsl(250_84%_64%))] shadow-[0_0_12px_hsl(225_88%_62%/0.5),inset_0_1px_0_rgb(255_255_255/0.45)]',
           )}
           style={{ transform: `translateX(-${100 - clamped}%)` }}
         />

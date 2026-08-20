@@ -15,30 +15,46 @@ interface StatCardProps {
   className?: string
 }
 
-const TONES: Record<NonNullable<StatCardProps['tone']>, string> = {
-  neutral: 'from-white to-zinc-100 text-zinc-500',
-  primary: 'from-violet-50 to-violet-100 text-violet-600',
-  success: 'from-emerald-50 to-emerald-100 text-emerald-600',
-  warning: 'from-amber-50 to-amber-100 text-amber-600',
-  danger: 'from-red-50 to-red-100 text-red-600',
+/** Raised, lit tiles. The glow is the tone; the glass stays near-white. */
+const TILES: Record<NonNullable<StatCardProps['tone']>, string> = {
+  neutral:
+    'bg-[linear-gradient(176deg,hsl(225_18%_74%),hsl(225_16%_56%))] text-white shadow-[0_4px_12px_-3px_hsl(225_16%_54%/0.45),0_0_20px_-6px_hsl(225_20%_62%/0.5),inset_0_1px_0_rgb(255_255_255/0.42)]',
+  primary:
+    'bg-[linear-gradient(176deg,hsl(250_92%_74%),hsl(250_84%_58%))] text-white shadow-[0_4px_12px_-3px_hsl(250_84%_58%/0.5),0_0_22px_-6px_hsl(250_88%_66%/0.62),inset_0_1px_0_rgb(255_255_255/0.45)]',
+  success:
+    'bg-[linear-gradient(176deg,hsl(158_70%_62%),hsl(160_66%_46%))] text-white shadow-[0_4px_12px_-3px_hsl(160_66%_46%/0.5),0_0_22px_-6px_hsl(158_70%_58%/0.62),inset_0_1px_0_rgb(255_255_255/0.45)]',
+  warning:
+    'bg-[linear-gradient(176deg,hsl(40_96%_66%),hsl(28_92%_54%))] text-white shadow-[0_4px_12px_-3px_hsl(28_92%_54%/0.5),0_0_22px_-6px_hsl(38_94%_62%/0.62),inset_0_1px_0_rgb(255_255_255/0.45)]',
+  danger:
+    'bg-[linear-gradient(176deg,hsl(4_92%_70%),hsl(4_78%_54%))] text-white shadow-[0_4px_12px_-3px_hsl(4_78%_54%/0.5),0_0_22px_-6px_hsl(4_88%_62%/0.62),inset_0_1px_0_rgb(255_255_255/0.45)]',
+}
+
+const BLOOMS: Record<NonNullable<StatCardProps['tone']>, string> = {
+  neutral: '[--bloom:hsl(225_20%_62%/0.3)]',
+  primary: '[--bloom:hsl(250_88%_68%/0.4)]',
+  success: '[--bloom:hsl(158_72%_58%/0.4)]',
+  warning: '[--bloom:hsl(38_94%_62%/0.4)]',
+  danger: '[--bloom:hsl(4_88%_64%/0.4)]',
 }
 
 export function StatCard({ label, value, hint, icon: Icon, tone = 'neutral', percent, className }: StatCardProps) {
   return (
-    <Card className={cn('glass-card-hover p-5', className)}>
+    <Card className={cn('bloom-host group glass-card-hover p-5', BLOOMS[tone], className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <p className="text-[12px] font-medium uppercase tracking-wider text-zinc-400">{label}</p>
-          <p className="text-[28px] font-semibold leading-none tracking-[-0.02em] text-zinc-900">{value}</p>
+          <p className="text-[28px] font-semibold leading-none tracking-[-0.022em] text-zinc-900 tabular-nums">
+            {value}
+          </p>
         </div>
         <div
           className={cn(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br',
-            'shadow-[0_2px_5px_rgba(24,24,27,.06),inset_0_1px_0_rgba(255,255,255,.95)]',
-            TONES[tone],
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px]',
+            'transition-transform duration-base ease-apple-pop group-hover:scale-[1.07]',
+            TILES[tone],
           )}
         >
-          <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
+          <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
         </div>
       </div>
       {typeof percent === 'number' && (
@@ -57,7 +73,7 @@ export function StatCardSkeleton() {
           <Skeleton className="h-3 w-20" />
           <Skeleton className="h-7 w-14" />
         </div>
-        <Skeleton className="h-10 w-10 rounded-xl" />
+        <Skeleton className="h-10 w-10 rounded-[13px]" />
       </div>
       <Skeleton className="mt-4 h-3 w-32" />
     </Card>

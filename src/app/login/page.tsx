@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2, Mail, ShieldCheck, UserRound, Waves } from 'luci
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+import { GlassStack } from '@/components/shared/glass-stack'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -77,7 +78,9 @@ export default function LoginPage() {
     <main className="depth-scene flex min-h-dvh items-center justify-center p-4 sm:p-6">
       <div className="grid w-full max-w-5xl gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-center">
         {/* Left: what Flowline is */}
-        <section className="order-2 space-y-5 lg:order-1">
+        <section className="relative order-2 space-y-5 lg:order-1">
+          <GlassStack className="absolute -left-24 -top-16 -z-10 hidden h-[380px] w-[560px] opacity-70 lg:block" />
+
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[hsl(250_84%_68%)] to-[hsl(250_84%_54%)] text-white shadow-[0_2px_5px_rgba(24,24,27,.1),0_10px_26px_-8px_rgba(109,88,240,.6),inset_0_1px_0_rgba(255,255,255,.4)]">
@@ -118,7 +121,7 @@ export default function LoginPage() {
 
         {/* Right: sign in */}
         <section className="order-1 lg:order-2">
-          <div className="glass glass-edge rounded-2xl p-6 shadow-glass-lg sm:p-7">
+          <div className="glass glass-thick glass-iris rounded-3xl p-6 sm:p-7">
             {sentTo ? (
               <div className="space-y-4 text-center">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-600 shadow-[inset_0_1px_0_rgba(255,255,255,.95),0_2px_6px_rgba(24,24,27,.07)]">

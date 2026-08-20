@@ -48,11 +48,13 @@ function NavList({ role, onNavigate }: { role: Role; onNavigate?: () => void }) 
             onClick={onNavigate}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'group relative flex items-start gap-3 rounded-xl px-3 py-2.5 transition-all duration-250 ease-spring',
+              'group relative flex items-start gap-3 rounded-xl px-3 py-2.5',
+              'transition-[color,background-color,box-shadow,transform] duration-base ease-apple-snap',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'active:scale-[0.985]',
               active
-                ? 'bg-gradient-to-b from-white to-zinc-50/80 text-zinc-900 shadow-raised'
-                : 'text-zinc-500 hover:bg-white/60 hover:text-zinc-800',
+                ? 'bg-[linear-gradient(176deg,rgb(255_255_255/1),rgb(250_251_254/0.86))] text-zinc-900 shadow-raised'
+                : 'text-zinc-500 hover:bg-white/65 hover:text-zinc-800',
             )}
           >
             {active && (
@@ -130,7 +132,7 @@ export function Sidebar() {
     <>
       {/* Laptop and up: a permanent glass rail. */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] p-3 lg:block">
-        <div className="glass glass-edge h-full rounded-2xl">
+        <div className="glass glass-thick h-full rounded-3xl">
           <SidebarBody />
         </div>
       </aside>
