@@ -10,7 +10,9 @@ import type {
   ChecklistItem,
   CreateTaskInput,
   Profile,
+  SaveCategoryInput,
   Task,
+  TaskCategory,
   TaskHandoff,
   TaskRoutine,
   TaskStatus,
@@ -130,6 +132,87 @@ export async function fetchRoutines(): Promise<TaskRoutine[]> {
  * Asks the database to materialise today's routine tasks. The SQL function is
  * idempotent, so calling it on every app load is safe and cheap.
  */
+export async function fetchCategories(): Promise<TaskCategory[]> {
+  if (IS_DEMO) return tick(demo.demoCategories())
+  const supabase = getBrowserClient()
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('task_categories')
+    .select('*')
+    .eq('active', true)
+    .order('name', { ascending: true })
+  raise(error)
+  return data ?? []
+}
+
+export async function saveCategory(input: SaveCategoryInput): Promise<TaskCategory> {
+  if (IS_DEMO) return tick(demo.demoSaveCategory(input))
+  const supabase = getBrowserClient()
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Your session expired. Please sign in again.')
+
+  const row = {
+    name: input.name.trim(),
+    base_type: input.base_type,
+    color: input.color,
+    icon: input.icon,
+    checklist: input.checklist,
+    sop: input.sop?.trim() ? input.sop.trim() : null,
+    estimated_minutes: input.estimated_minutes ?? null,
+  }
+
+  const query = input.id
+    ? supabase.from('task_categories').update(row).eq('id', input.id)
+    : supabase.from('task_categories').insert({ ...row, created_by: user.id })
+
+  const { data, error } = await query.select('*').single()
+  raise(error)
+  if (!data) throw new Error('The work type could not be saved.')
+  return data
+}
+
+export async function deleteCategory(categoryId: string): Promise<void> {
+  if (IS_DEMO) {
+    demo.demoDeleteCategory(categoryId)
+    await tick(null)
+    return
+  }
+  const supabase = getBrowserClient()
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.from('task_categories').delete().eq('id', categoryId)
+  raise(error)
+}
+
+export interface AiDraft {
+  sop: string
+  checklist: string[]
+  estimated_minutes: number
+  /** True when a real model produced this rather than the local fallback. */
+  ai: boolean
+}
+
+/** Asks the server to draft an SOP and checklist for a job. */
+export async function draftWorkPlan(title: string, taskType: string): Promise<AiDraft> {
+  const response = await fetch('/api/ai/draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, task_type: taskType }),
+  })
+  const payload = (await response.json()) as Partial<AiDraft> & { error?: string }
+  if (!response.ok || !payload.sop) {
+    throw new Error(payload.error ?? 'The draft could not be written.')
+  }
+  return {
+    sop: payload.sop,
+    checklist: payload.checklist ?? [],
+    estimated_minutes: payload.estimated_minutes ?? 30,
+    ai: payload.ai ?? false,
+  }
+}
+
 export async function generateRoutineTasks(): Promise<number> {
   if (IS_DEMO) return tick(demo.runRoutineGeneration(), 0)
   const supabase = getBrowserClient()
@@ -167,6 +250,9 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
         created_by: user.id,
         due_time: dueTime,
         checklist: input.checklist,
+        sop: input.sop ?? null,
+        estimated_minutes: input.estimated_minutes ?? null,
+        category_id: input.category_id ?? null,
         active: true,
       })
       .select('*')
@@ -183,6 +269,9 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
         created_by: user.id,
         due_date: combineDayAndTime(todayKey(), dueTime),
         checklist: input.checklist,
+        sop: input.sop ?? null,
+        estimated_minutes: input.estimated_minutes ?? null,
+        category_id: input.category_id ?? null,
         routine_id: routine?.id ?? null,
         routine_on: todayKey(),
       })
@@ -203,6 +292,9 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       created_by: user.id,
       due_date: input.due_date,
       checklist: input.checklist,
+      sop: input.sop ?? null,
+      estimated_minutes: input.estimated_minutes ?? null,
+      category_id: input.category_id ?? null,
     })
     .select('*')
     .single()

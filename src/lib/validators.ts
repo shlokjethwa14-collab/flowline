@@ -26,6 +26,15 @@ export const createTaskSchema = z
     due_time: z.string().regex(timeRegex, 'Use a time like 17:30.'),
     recurrence: z.enum(['once', 'daily']),
     checklist: z.array(checklistItemSchema).max(12, 'Twelve steps is plenty for one task.'),
+    sop: z.string().trim().max(4000, 'Keep the procedure under 4000 characters.').optional().or(z.literal('')),
+    /** 0 means "not estimated"; the form leaves it blank by default. */
+    estimated_minutes: z.coerce
+      .number({ invalid_type_error: 'Enter minutes as a number.' })
+      .int('Use whole minutes.')
+      .min(0)
+      .max(1440, 'That is more than a day — split the job up.')
+      .optional(),
+    category_id: z.string().nullable().optional(),
   })
   .superRefine((value, ctx) => {
     if (value.recurrence === 'once') {
@@ -74,3 +83,22 @@ export const signInSchema = z.object({
 })
 
 export type SignInValues = z.infer<typeof signInSchema>
+
+export const CATEGORY_BASE_TYPES = TASK_TYPE_VALUES
+
+export const categorySchema = z.object({
+  id: z.string().optional(),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Give the work type a name.')
+    .max(40, 'Keep the name short — it appears on every card.'),
+  base_type: z.enum(CATEGORY_BASE_TYPES),
+  color: z.string().min(1),
+  icon: z.string().min(1),
+  checklist: z.array(checklistItemSchema).max(12, 'Twelve steps is plenty.'),
+  sop: z.string().trim().max(4000, 'Keep the procedure under 4000 characters.').optional().or(z.literal('')),
+  estimated_minutes: z.coerce.number().int().min(0).max(1440).optional(),
+})
+
+export type CategoryValues = z.infer<typeof categorySchema>

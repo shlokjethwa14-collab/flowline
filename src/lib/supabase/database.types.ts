@@ -55,6 +55,9 @@ export interface Database {
           completed_at: string | null
           task_type: TaskType
           checklist: ChecklistItem[]
+          sop: string | null
+          estimated_minutes: number | null
+          category_id: string | null
           routine_id: string | null
           routine_on: string | null
           created_at: string
@@ -72,6 +75,9 @@ export interface Database {
           completed_at?: string | null
           task_type?: TaskType
           checklist?: ChecklistItem[]
+          sop?: string | null
+          estimated_minutes?: number | null
+          category_id?: string | null
           routine_id?: string | null
           routine_on?: string | null
           created_at?: string
@@ -89,6 +95,9 @@ export interface Database {
           completed_at?: string | null
           task_type?: TaskType
           checklist?: ChecklistItem[]
+          sop?: string | null
+          estimated_minutes?: number | null
+          category_id?: string | null
           routine_id?: string | null
           routine_on?: string | null
           created_at?: string
@@ -155,6 +164,9 @@ export interface Database {
           created_by: string | null
           due_time: string
           checklist: ChecklistItem[]
+          sop: string | null
+          estimated_minutes: number | null
+          category_id: string | null
           active: boolean
           last_generated_on: string | null
           created_at: string
@@ -167,6 +179,9 @@ export interface Database {
           created_by?: string | null
           due_time?: string
           checklist?: ChecklistItem[]
+          sop?: string | null
+          estimated_minutes?: number | null
+          category_id?: string | null
           active?: boolean
           last_generated_on?: string | null
           created_at?: string
@@ -179,8 +194,53 @@ export interface Database {
           created_by?: string | null
           due_time?: string
           checklist?: ChecklistItem[]
+          sop?: string | null
+          estimated_minutes?: number | null
+          category_id?: string | null
           active?: boolean
           last_generated_on?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      task_categories: {
+        Row: {
+          id: string
+          name: string
+          base_type: TaskType
+          color: string
+          icon: string
+          checklist: ChecklistItem[]
+          sop: string | null
+          estimated_minutes: number | null
+          active: boolean
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          base_type?: TaskType
+          color?: string
+          icon?: string
+          checklist?: ChecklistItem[]
+          sop?: string | null
+          estimated_minutes?: number | null
+          active?: boolean
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          base_type?: TaskType
+          color?: string
+          icon?: string
+          checklist?: ChecklistItem[]
+          sop?: string | null
+          estimated_minutes?: number | null
+          active?: boolean
+          created_by?: string | null
           created_at?: string
         }
         Relationships: []

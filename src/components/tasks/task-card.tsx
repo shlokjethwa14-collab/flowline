@@ -1,14 +1,16 @@
 'use client'
 
-import { CheckCircle2, ListChecks } from 'lucide-react'
+import { BookOpen, CheckCircle2, ListChecks, Timer } from 'lucide-react'
 import { PersonAvatar } from '@/components/shared/person-avatar'
+import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useProfileMap } from '@/hooks/use-flowline'
-import { taskTypeMeta } from '@/lib/task-meta'
+import { useCategories } from '@/lib/data/queries'
+import { resolveTaskMeta } from '@/lib/task-meta'
 import type { Task } from '@/lib/types'
-import { checklistProgress, cn, isOverdue } from '@/lib/utils'
+import { checklistProgress, cn, humanMinutes, isOverdue } from '@/lib/utils'
 import { useUIStore } from '@/store/ui'
 import { BlockedBadge, DueBadge, RoutineBadge, StatusChip } from './task-badges'
 
@@ -24,11 +26,12 @@ interface TaskCardProps {
 export function TaskCard({ task, showAssignee = true, compact = false, className }: TaskCardProps) {
   const openTask = useUIStore((s) => s.openTask)
   const profiles = useProfileMap()
+  const { data: categories } = useCategories()
   const assignee = task.assigned_to ? (profiles.get(task.assigned_to) ?? null) : null
   const progress = checklistProgress(task.checklist)
   const overdue = isOverdue(task)
   const done = task.status === 'done'
-  const meta = taskTypeMeta(task.task_type)
+  const meta = resolveTaskMeta(task, categories ?? [])
   const Icon = meta.icon
 
   return (
@@ -96,6 +99,18 @@ export function TaskCard({ task, showAssignee = true, compact = false, className
 
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         <RoutineBadge task={task} />
+        {task.sop && (
+          <Badge variant="outline" title="This job has a written procedure">
+            <BookOpen className="h-3 w-3" />
+            SOP
+          </Badge>
+        )}
+        {task.estimated_minutes ? (
+          <Badge variant="outline">
+            <Timer className="h-3 w-3" />
+            {humanMinutes(task.estimated_minutes)}
+          </Badge>
+        ) : null}
         <BlockedBadge blocked={task.is_blocked} />
         {done ? (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50/90 px-2.5 py-1 text-[11px] font-medium leading-none text-emerald-700 shadow-[inset_0_1px_0_rgb(255_255_255/0.7)] ring-1 ring-inset ring-emerald-300/60">

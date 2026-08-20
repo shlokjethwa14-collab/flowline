@@ -1,6 +1,18 @@
 'use client'
 
-import { CalendarClock, CheckCircle2, Loader2, Pause, Play, Plus, Repeat, Trash2, Users } from 'lucide-react'
+import {
+  BookOpen,
+  CalendarClock,
+  CheckCircle2,
+  Loader2,
+  Pause,
+  Play,
+  Plus,
+  Repeat,
+  Timer,
+  Trash2,
+  Users,
+} from 'lucide-react'
 import { useMemo } from 'react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { PageHeader } from '@/components/shared/page-header'
@@ -13,10 +25,17 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useProfileMap } from '@/hooks/use-flowline'
-import { useDeleteRoutine, useProfiles, useRoutines, useSetRoutineActive, useTasks } from '@/lib/data/queries'
-import { taskTypeMeta } from '@/lib/task-meta'
+import {
+  useCategories,
+  useDeleteRoutine,
+  useProfiles,
+  useRoutines,
+  useSetRoutineActive,
+  useTasks,
+} from '@/lib/data/queries'
+import { resolveTaskMeta } from '@/lib/task-meta'
 import type { Profile, Task } from '@/lib/types'
-import { cn, isSameDay, pluralize } from '@/lib/utils'
+import { cn, humanMinutes, isSameDay, pluralize } from '@/lib/utils'
 import { useUIStore } from '@/store/ui'
 
 interface PersonSummary {
@@ -108,6 +127,7 @@ function PersonCard({ summary }: { summary: PersonSummary }) {
 
 function RoutinesPanel() {
   const { data: routines, isLoading } = useRoutines()
+  const { data: categories } = useCategories()
   const profiles = useProfileMap()
   const setActive = useSetRoutineActive()
   const removeRoutine = useDeleteRoutine()
@@ -137,7 +157,7 @@ function RoutinesPanel() {
     <ul className="space-y-2">
       {list.map((routine) => {
         const owner = routine.assigned_to ? (profiles.get(routine.assigned_to) ?? null) : null
-        const meta = taskTypeMeta(routine.task_type)
+        const meta = resolveTaskMeta({ task_type: routine.task_type, category_id: routine.category_id }, categories ?? [])
         const Icon = meta.icon
         return (
           <li
@@ -168,6 +188,24 @@ function RoutinesPanel() {
                   <CalendarClock className="h-3 w-3" />
                   Every working day at {routine.due_time}
                 </span>
+                {routine.estimated_minutes ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="inline-flex items-center gap-1 font-medium text-zinc-600">
+                      <Timer className="h-3 w-3" />
+                      takes about {humanMinutes(routine.estimated_minutes)}
+                    </span>
+                  </>
+                ) : null}
+                {routine.sop ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="inline-flex items-center gap-1">
+                      <BookOpen className="h-3 w-3" />
+                      has a procedure
+                    </span>
+                  </>
+                ) : null}
               </p>
             </div>
 

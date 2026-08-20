@@ -1,15 +1,23 @@
 'use client'
 
-import { CalendarDays, ChevronLeft, ChevronRight, Dot } from 'lucide-react'
+import { CalendarDays, CalendarOff, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { TaskCard } from '@/components/tasks/task-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { taskTypeMeta } from '@/lib/task-meta'
+import { useCategories } from '@/lib/data/queries'
+import { resolveTaskMeta } from '@/lib/task-meta'
 import type { Task } from '@/lib/types'
-import { cn, formatFriendlyDay, toDayKey, todayKey } from '@/lib/utils'
+import { cn, formatFriendlyDay, humanMinutes, toDayKey, todayKey } from '@/lib/utils'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -56,6 +64,8 @@ export function WorkCalendar({ tasks, isLoading = false, caption, className }: W
     return { year: now.getFullYear(), month: now.getMonth() }
   })
   const [selected, setSelected] = useState<string>(() => todayKey())
+  const [dayOpen, setDayOpen] = useState(false)
+  const { data: categories } = useCategories()
 
   const byDay = useMemo(() => {
     const map = new Map<string, Task[]>()
@@ -78,6 +88,8 @@ export function WorkCalendar({ tasks, isLoading = false, caption, className }: W
 
   const cells = useMemo(() => buildMonth(cursor.year, cursor.month, byDay), [cursor, byDay])
   const selectedTasks = byDay.get(selected) ?? []
+  const totalMinutes = selectedTasks.reduce((sum, t) => sum + (t.estimated_minutes ?? 0), 0)
+  const selectedDate = new Date(`${selected}T12:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' })
 
   const monthLabel = new Date(cursor.year, cursor.month, 1).toLocaleDateString(undefined, {
     month: 'long',
@@ -98,18 +110,13 @@ export function WorkCalendar({ tasks, isLoading = false, caption, className }: W
   }
 
   if (isLoading) {
-    return (
-      <div className={cn('grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]', className)}>
-        <Skeleton className="h-[420px] w-full rounded-2xl" />
-        <Skeleton className="h-[420px] w-full rounded-2xl" />
-      </div>
-    )
+    return <Skeleton className={cn('h-[520px] w-full rounded-2xl', className)} />
   }
 
   return (
-    <div className={cn('grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]', className)}>
+    <div className={className}>
       {/* ---- Month grid ------------------------------------------- */}
-      <section className="glass-panel p-4 sm:p-5">
+      <section className="glass-panel p-4 sm:p-6">
         <header className="mb-4 flex flex-wrap items-center gap-2">
           <div className="min-w-0">
             <h2 className="text-[16px] font-semibold tracking-[-0.014em] text-zinc-900">{monthLabel}</h2>
@@ -146,7 +153,10 @@ export function WorkCalendar({ tasks, isLoading = false, caption, className }: W
               <button
                 key={cell.key}
                 type="button"
-                onClick={() => setSelected(cell.key)}
+                onClick={() => {
+                  setSelected(cell.key)
+                  setDayOpen(true)
+                }}
                 aria-label={`${cell.date.toLocaleDateString(undefined, { dateStyle: 'full' })}, ${count} ${count === 1 ? 'job' : 'jobs'}`}
                 aria-pressed={isSelected}
                 className={cn(
@@ -170,7 +180,7 @@ export function WorkCalendar({ tasks, isLoading = false, caption, className }: W
                         key={t.id}
                         className={cn(
                           'h-1.5 w-1.5 rounded-full',
-                          isSelected ? 'bg-white/85' : taskTypeMeta(t.task_type).dot,
+                          isSelected ? 'bg-white/85' : resolveTaskMeta(t, categories ?? []).dot,
                         )}
                       />
                     ))}
@@ -187,31 +197,37 @@ export function WorkCalendar({ tasks, isLoading = false, caption, className }: W
         </div>
       </section>
 
-      {/* ---- Selected day ----------------------------------------- */}
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-[16px] font-semibold tracking-[-0.014em] text-zinc-900">
-            {formatFriendlyDay(selected)}
-          </h2>
-          <Badge variant={selectedTasks.length > 0 ? 'primary' : 'outline'}>
-            {selectedTasks.length} {selectedTasks.length === 1 ? 'job' : 'jobs'}
-          </Badge>
-        </div>
+      {/* ---- Selected day, as a sheet over the month --------------- */}
+      <Dialog open={dayOpen} onOpenChange={setDayOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex flex-wrap items-center gap-2">
+              {formatFriendlyDay(selected)}
+              <Badge variant={selectedTasks.length > 0 ? 'primary' : 'outline'}>
+                {selectedTasks.length} {selectedTasks.length === 1 ? 'job' : 'jobs'}
+              </Badge>
+            </DialogTitle>
+            <DialogDescription>
+              {selectedDate}
+              {totalMinutes > 0 && ` · about ${humanMinutes(totalMinutes)} of work`}
+            </DialogDescription>
+          </DialogHeader>
 
-        {selectedTasks.length === 0 ? (
-          <EmptyState
-            icon={Dot}
-            title="Nothing on this day"
-            description="Pick another date, or anything scheduled for this day will appear here as soon as it is assigned."
-          />
-        ) : (
-          <div className="grid gap-3 stagger">
-            {selectedTasks.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
-          </div>
-        )}
-      </section>
+          {selectedTasks.length === 0 ? (
+            <EmptyState
+              icon={CalendarOff}
+              title="Nothing on this day"
+              description="Anything scheduled for this day will appear here the moment it is assigned."
+            />
+          ) : (
+            <div className="grid max-h-[60dvh] gap-3 overflow-y-auto pr-1 stagger">
+              {selectedTasks.map((task) => (
+                <TaskCard key={task.id} task={task} />
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

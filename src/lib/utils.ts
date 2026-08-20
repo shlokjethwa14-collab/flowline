@@ -150,6 +150,15 @@ export function isWorkingDay(dayKey: string): boolean {
   return d.getDay() !== 0
 }
 
+/** "45m", "1h 30m", "2h" — for planning a day, not for stopwatch precision. */
+export function humanMinutes(minutes: number | null | undefined): string {
+  if (!minutes || minutes <= 0) return '—'
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest ? `${hours}h ${rest}m` : `${hours}h`
+}
+
 export function pluralize(count: number, singular: string, plural?: string): string {
   return count === 1 ? singular : (plural ?? `${singular}s`)
 }

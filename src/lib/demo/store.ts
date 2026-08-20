@@ -6,7 +6,9 @@ import type {
   CreateTaskInput,
   AddEmployeeInput,
   Profile,
+  SaveCategoryInput,
   Task,
+  TaskCategory,
   TaskHandoff,
   TaskRoutine,
   TaskStatus,
@@ -50,6 +52,7 @@ function readPersisted(): PersistedShape | null {
     if (!parsed || !Array.isArray(parsed.profiles) || !Array.isArray(parsed.tasks)) return null
     return {
       profiles: parsed.profiles,
+      categories: parsed.categories ?? [],
       tasks: parsed.tasks,
       activity: parsed.activity ?? [],
       handoffs: parsed.handoffs ?? [],
@@ -112,6 +115,61 @@ export function demoHandoffs(): TaskHandoff[] {
 
 export function demoRoutines(): TaskRoutine[] {
   return [...ensure().routines]
+}
+
+export function demoCategories(): TaskCategory[] {
+  return [...ensure().categories]
+}
+
+export function demoSaveCategory(input: SaveCategoryInput): TaskCategory {
+  const data = ensure()
+  if (input.id) {
+    const existing = data.categories.find((c) => c.id === input.id)
+    if (!existing) throw new Error('That work type is no longer here.')
+    Object.assign(existing, {
+      name: input.name.trim(),
+      base_type: input.base_type,
+      color: input.color,
+      icon: input.icon,
+      checklist: input.checklist,
+      sop: input.sop?.trim() ? input.sop.trim() : null,
+      estimated_minutes: input.estimated_minutes ?? null,
+    })
+    notify()
+    return existing
+  }
+
+  const category: TaskCategory = {
+    id: uid(),
+    name: input.name.trim(),
+    base_type: input.base_type,
+    color: input.color,
+    icon: input.icon,
+    checklist: input.checklist,
+    sop: input.sop?.trim() ? input.sop.trim() : null,
+    estimated_minutes: input.estimated_minutes ?? null,
+    active: true,
+    created_by: previewUserId,
+    created_at: new Date().toISOString(),
+  }
+  data.categories.push(category)
+  notify()
+  return category
+}
+
+export function demoDeleteCategory(categoryId: string): void {
+  const data = ensure()
+  const index = data.categories.findIndex((c) => c.id === categoryId)
+  if (index === -1) throw new Error('That work type is no longer here.')
+  data.categories.splice(index, 1)
+  // Existing work keeps its built-in type and simply loses the custom label.
+  for (const task of data.tasks) {
+    if (task.category_id === categoryId) task.category_id = null
+  }
+  for (const routine of data.routines) {
+    if (routine.category_id === categoryId) routine.category_id = null
+  }
+  notify()
 }
 
 export function demoCurrentUserId(): string {
@@ -183,6 +241,9 @@ export function runRoutineGeneration(day: string = todayKey()): number {
       completed_at: null,
       task_type: routine.task_type,
       checklist: routine.checklist.map((c) => ({ ...c, id: uid(), done: false })),
+      sop: routine.sop,
+      estimated_minutes: routine.estimated_minutes,
+      category_id: routine.category_id,
       routine_id: routine.id,
       routine_on: day,
       created_at: now,
@@ -213,6 +274,9 @@ export function demoCreateTask(input: CreateTaskInput): Task {
       created_by: actor,
       due_time: input.due_time ?? '17:00',
       checklist: input.checklist,
+      sop: input.sop?.trim() ? input.sop.trim() : null,
+      estimated_minutes: input.estimated_minutes ?? null,
+      category_id: input.category_id ?? null,
       active: true,
       last_generated_on: null,
       created_at: now,
@@ -232,6 +296,9 @@ export function demoCreateTask(input: CreateTaskInput): Task {
       completed_at: null,
       task_type: input.task_type,
       checklist: input.checklist.map((c) => ({ ...c, id: uid(), done: false })),
+      sop: routine.sop,
+      estimated_minutes: routine.estimated_minutes,
+      category_id: routine.category_id,
       routine_id: routine.id,
       routine_on: todayKey(),
       created_at: now,
@@ -255,6 +322,9 @@ export function demoCreateTask(input: CreateTaskInput): Task {
     completed_at: null,
     task_type: input.task_type,
     checklist: input.checklist,
+    sop: input.sop?.trim() ? input.sop.trim() : null,
+    estimated_minutes: input.estimated_minutes ?? null,
+    category_id: input.category_id ?? null,
     routine_id: null,
     routine_on: null,
     created_at: now,

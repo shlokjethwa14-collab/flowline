@@ -1,14 +1,22 @@
 import {
   Boxes,
   ClipboardList,
+  Factory,
   Hourglass,
+  Package,
   Phone,
+  Route,
+  Scissors,
   ShoppingCart,
   Sprout,
+  Star,
+  Truck,
   Users,
+  Wallet,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react'
-import type { ChecklistItem, TaskStatus, TaskType } from './types'
+import type { ChecklistItem, Task, TaskCategory, TaskStatus, TaskType } from './types'
 import { uid } from './utils'
 
 export interface TaskTypeMeta {
@@ -163,6 +171,93 @@ const STATUS_BY_VALUE = new Map<TaskStatus, StatusMeta>(TASK_STATUSES.map((s) =>
 
 export function statusMeta(status: TaskStatus): StatusMeta {
   return STATUS_BY_VALUE.get(status) ?? TASK_STATUSES[0]
+}
+
+/* ------------------------------------------------------------------ */
+/* Custom work types                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A fixed palette and icon set. Companies pick from these rather than getting
+ * a colour wheel — every custom type then still looks like it belongs to the
+ * same system, which is the whole point of having one.
+ */
+export const CATEGORY_COLORS = [
+  { key: 'violet', label: 'Violet', h: 252, s: 86 },
+  { key: 'blue', label: 'Blue', h: 214, s: 90 },
+  { key: 'cyan', label: 'Cyan', h: 194, s: 88 },
+  { key: 'teal', label: 'Teal', h: 174, s: 76 },
+  { key: 'green', label: 'Green', h: 152, s: 70 },
+  { key: 'amber', label: 'Amber', h: 36, s: 94 },
+  { key: 'orange', label: 'Orange', h: 22, s: 92 },
+  { key: 'rose', label: 'Rose', h: 346, s: 86 },
+  { key: 'slate', label: 'Slate', h: 225, s: 16 },
+] as const
+
+export type CategoryColorKey = (typeof CATEGORY_COLORS)[number]['key']
+
+export const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  boxes: Boxes,
+  phone: Phone,
+  cart: ShoppingCart,
+  clipboard: ClipboardList,
+  hourglass: Hourglass,
+  users: Users,
+  sprout: Sprout,
+  truck: Truck,
+  factory: Factory,
+  scissors: Scissors,
+  package: Package,
+  wallet: Wallet,
+  wrench: Wrench,
+  route: Route,
+  star: Star,
+}
+
+export const CATEGORY_ICON_KEYS = Object.keys(CATEGORY_ICONS)
+
+const COLOR_KEYS = new Set(CATEGORY_COLORS.map((c) => c.key as string))
+
+/**
+ * Builds the same chip/dot/bloom/tile quartet the built-in types carry.
+ *
+ * These are static class pairs, not interpolated Tailwind — Tailwind scans
+ * source text and would never emit a class built from a runtime value. The
+ * hue lives in a CSS variable set by `.cat-<key>` (see globals.css) and the
+ * role classes read it.
+ */
+export function categoryStyles(colorKey: string): Pick<TaskTypeMeta, 'chip' | 'dot' | 'bloom' | 'tile'> {
+  const key = COLOR_KEYS.has(colorKey) ? colorKey : 'slate'
+  return {
+    chip: `cat-${key} cat-chip`,
+    dot: `cat-${key} cat-dot`,
+    bloom: `cat-${key} cat-bloom`,
+    tile: `cat-${key} cat-tile`,
+  }
+}
+
+/**
+ * Display metadata for a task, whether it uses a built-in type or one of the
+ * company's own categories. Everything that renders a task goes through here.
+ */
+export function resolveTaskMeta(
+  task: Pick<Task, 'task_type' | 'category_id'>,
+  categories: TaskCategory[],
+): TaskTypeMeta {
+  if (task.category_id) {
+    const category = categories.find((c) => c.id === task.category_id)
+    if (category) {
+      return {
+        value: category.base_type,
+        label: category.name,
+        hint: '',
+        icon: CATEGORY_ICONS[category.icon] ?? Boxes,
+        template: category.checklist.map((c) => c.label),
+        ...categoryStyles(category.color),
+      }
+    }
+  }
+  return taskTypeMeta(task.task_type)
 }
 
 /** The four groups on My Day. Order matters — it is the order shown. */

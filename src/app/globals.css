@@ -494,6 +494,50 @@
     background: linear-gradient(90deg, hsl(var(--z-400) / 0.24), hsl(var(--z-400) / 0.6), hsl(var(--z-400) / 0.24));
   }
 
+  /* ==================================================================
+     5. CUSTOM WORK TYPES
+     The hue is a variable so a company can define its own categories
+     without Tailwind needing to have seen the colour at build time.
+     ================================================================== */
+
+  .cat-violet { --cat-h: 252; --cat-s: 86%; }
+  .cat-blue   { --cat-h: 214; --cat-s: 90%; }
+  .cat-cyan   { --cat-h: 194; --cat-s: 88%; }
+  .cat-teal   { --cat-h: 174; --cat-s: 76%; }
+  .cat-green  { --cat-h: 152; --cat-s: 70%; }
+  .cat-amber  { --cat-h: 36;  --cat-s: 94%; }
+  .cat-orange { --cat-h: 22;  --cat-s: 92%; }
+  .cat-rose   { --cat-h: 346; --cat-s: 86%; }
+  .cat-slate  { --cat-h: 225; --cat-s: 16%; }
+
+  .cat-chip {
+    background: hsl(var(--cat-h) var(--cat-s) 96%);
+    color: hsl(var(--cat-h) calc(var(--cat-s) * 0.6) 34%);
+    --tw-ring-color: hsl(var(--cat-h) var(--cat-s) 84% / 0.7);
+  }
+  .dark .cat-chip {
+    background: hsl(var(--cat-h) calc(var(--cat-s) * 0.5) 18%);
+    color: hsl(var(--cat-h) var(--cat-s) 82%);
+    --tw-ring-color: hsl(var(--cat-h) var(--cat-s) 50% / 0.4);
+  }
+
+  .cat-dot {
+    background: hsl(var(--cat-h) var(--cat-s) 56%);
+  }
+
+  .cat-bloom {
+    --bloom: hsl(var(--cat-h) var(--cat-s) 64% / 0.42);
+  }
+
+  .cat-tile {
+    background: linear-gradient(176deg, hsl(var(--cat-h) var(--cat-s) 68%), hsl(var(--cat-h) var(--cat-s) 50%));
+    color: #fff;
+    box-shadow:
+      0 4px 12px -3px hsl(var(--cat-h) var(--cat-s) 50% / 0.5),
+      0 0 20px -6px hsl(var(--cat-h) var(--cat-s) 62% / 0.6),
+      inset 0 1px 0 rgb(255 255 255 / 0.45);
+  }
+
   .stagger > * {
     animation: lift-in 0.62s cubic-bezier(0.32, 0.72, 0, 1) both;
   }

@@ -12,7 +12,9 @@ import type {
   ChecklistItem,
   CreateTaskInput,
   Profile,
+  SaveCategoryInput,
   Task,
+  TaskCategory,
   TaskHandoff,
   TaskRoutine,
   TaskStatus,
@@ -26,6 +28,7 @@ export const qk = {
   activity: ['activity'] as const,
   handoffs: ['handoffs'] as const,
   routines: ['routines'] as const,
+  categories: ['categories'] as const,
 }
 
 /* ------------------------------------------------------------------ */
@@ -56,6 +59,57 @@ export function useRoutines() {
   return useQuery({ queryKey: qk.routines, queryFn: api.fetchRoutines, staleTime: 30_000 })
 }
 
+export function useCategories() {
+  return useQuery({ queryKey: qk.categories, queryFn: api.fetchCategories, staleTime: 60_000 })
+}
+
+export function useSaveCategory() {
+  const client = useQueryClient()
+  return useMutation<TaskCategory, Error, SaveCategoryInput>({
+    mutationFn: (input) => api.saveCategory(input),
+    onSuccess: (category, input) => {
+      toast.success(input.id ? 'Work type updated.' : 'Work type added.', { description: category.name })
+      void client.invalidateQueries({ queryKey: qk.categories })
+    },
+    onError: (error) => toast.error(api.friendlyError(error)),
+  })
+}
+
+export function useDeleteCategory() {
+  const client = useQueryClient()
+  return useMutation<void, Error, { categoryId: string }, { previous: TaskCategory[] | undefined }>({
+    mutationFn: ({ categoryId }) => api.deleteCategory(categoryId),
+    onMutate: async ({ categoryId }) => {
+      await client.cancelQueries({ queryKey: qk.categories })
+      const previous = client.getQueryData<TaskCategory[]>(qk.categories)
+      if (previous) {
+        client.setQueryData<TaskCategory[]>(
+          qk.categories,
+          previous.filter((c) => c.id !== categoryId),
+        )
+      }
+      return { previous }
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previous) client.setQueryData(qk.categories, context.previous)
+      toast.error(api.friendlyError(error))
+    },
+    onSuccess: () => toast.success('Work type removed.'),
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: qk.categories })
+      void client.invalidateQueries({ queryKey: qk.tasks })
+    },
+  })
+}
+
+/** Asks Claude for an SOP, checklist and time estimate for a job. */
+export function useDraftWorkPlan() {
+  return useMutation<api.AiDraft, Error, { title: string; taskType: string }>({
+    mutationFn: ({ title, taskType }) => api.draftWorkPlan(title, taskType),
+    onError: (error) => toast.error(api.friendlyError(error)),
+  })
+}
+
 /* ------------------------------------------------------------------ */
 /* Realtime                                                            */
 /* ------------------------------------------------------------------ */
@@ -65,6 +119,7 @@ function invalidateAll(client: QueryClient): void {
   void client.invalidateQueries({ queryKey: qk.activity })
   void client.invalidateQueries({ queryKey: qk.handoffs })
   void client.invalidateQueries({ queryKey: qk.routines })
+  void client.invalidateQueries({ queryKey: qk.categories })
   void client.invalidateQueries({ queryKey: qk.profiles })
   void client.invalidateQueries({ queryKey: qk.session })
 }

@@ -3,10 +3,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   ArrowRightLeft,
+  BookOpen,
   CalendarClock,
   CheckCheck,
   CircleAlert,
   Clock3,
+  Gauge,
   Loader2,
   MessageSquarePlus,
   PlayCircle,
@@ -53,6 +55,7 @@ import {
   currentOwnerMs,
   formatDateTime,
   humanDuration,
+  humanMinutes,
   timeAgo,
   totalElapsedMs,
 } from '@/lib/utils'
@@ -249,6 +252,9 @@ function TaskSheetBody({ task, onClose }: { task: Task; onClose: () => void }) {
           />
           <MetaRow icon={Timer} label="Total time on this" value={elapsed} />
           <MetaRow icon={Clock3} label="With current owner" value={ownerTime} />
+          {task.estimated_minutes ? (
+            <MetaRow icon={Gauge} label="Expected to take" value={humanMinutes(task.estimated_minutes)} />
+          ) : null}
         </section>
 
         {/* --- Outcome ----------------------------------------------- */}
@@ -282,6 +288,37 @@ function TaskSheetBody({ task, onClose }: { task: Task; onClose: () => void }) {
                   </button>
                 )
               })}
+            </div>
+          </section>
+        )}
+
+        {/* --- SOP ---------------------------------------------------
+            Standing instructions, shown to whoever holds the work. This is
+            the difference between "do the stock check" and knowing how the
+            company expects a stock check to be done. */}
+        {task.sop && (
+          <section className="space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <SectionTitle>How this job is done</SectionTitle>
+              <Badge variant="primary">
+                <BookOpen className="h-3 w-3" />
+                Standard procedure
+              </Badge>
+            </div>
+            <div
+              className={cn(
+                'glass-panel space-y-2 p-4',
+                'before:absolute before:inset-y-4 before:left-0 before:w-[3px] before:rounded-r-full',
+                'before:bg-[linear-gradient(180deg,hsl(250_92%_72%),hsl(250_84%_58%))]',
+              )}
+            >
+              {task.sop.split('\n').map((line, i) =>
+                line.trim() ? (
+                  <p key={i} className="text-[13.5px] leading-relaxed text-zinc-700">
+                    {line}
+                  </p>
+                ) : null,
+              )}
             </div>
           </section>
         )}

@@ -1,7 +1,7 @@
 'use client'
 
 import { LogOut, Menu, Plus, RotateCcw, Search, ShieldCheck, User, UserCog } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { PersonAvatar } from '@/components/shared/person-avatar'
@@ -26,6 +26,7 @@ import { ThemeToggle } from './theme-toggle'
 
 function GlobalSearch() {
   const router = useRouter()
+  const pathname = usePathname()
   const search = useUIStore((s) => s.search)
   const setSearch = useUIStore((s) => s.setSearch)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -54,8 +55,13 @@ function GlobalSearch() {
         ref={inputRef}
         type="search"
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        onFocus={() => router.push('/all-work')}
+        onChange={(e) => {
+          setSearch(e.target.value)
+          // Jump to the results only once the person actually types. Doing
+          // this on focus also fired when a closing dialog restored focus
+          // here, which yanked people to All Work out of nowhere.
+          if (e.target.value.trim() && pathname !== '/all-work') router.push('/all-work')
+        }}
         placeholder="Search work…"
         aria-label="Search all work"
         className="h-9 pl-9 pr-10 text-[13.5px]"

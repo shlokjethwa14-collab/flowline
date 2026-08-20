@@ -1,13 +1,26 @@
-import type { ActivityLog, ChecklistItem, Profile, Task, TaskHandoff, TaskRoutine } from '@/lib/types'
+import type {
+  ActivityLog,
+  ChecklistItem,
+  Profile,
+  Task,
+  TaskCategory,
+  TaskHandoff,
+  TaskRoutine,
+} from '@/lib/types'
 import { toDayKey } from '@/lib/utils'
 
 export interface DemoDataset {
   profiles: Profile[]
+  categories: TaskCategory[]
   tasks: Task[]
   activity: ActivityLog[]
   handoffs: TaskHandoff[]
   routines: TaskRoutine[]
 }
+
+/** Seeds omit the fields that get sensible defaults, to keep this file readable. */
+type SeedTask = Omit<Task, 'sop' | 'estimated_minutes' | 'category_id'> &
+  Partial<Pick<Task, 'sop' | 'estimated_minutes' | 'category_id'>>
 
 /** An instant `dayOffset` days from today at local wall-clock `time`. */
 function at(dayOffset: number, time: string): string {
@@ -108,7 +121,79 @@ const PROFILES: Profile[] = [
   },
 ]
 
-function buildTasks(): Task[] {
+function buildCategories(): TaskCategory[] {
+  return [
+    {
+      id: 'c-dispatch',
+      name: 'Dispatch run',
+      base_type: 'order',
+      color: 'orange',
+      icon: 'truck',
+      checklist: check('c-dispatch', [
+        ['Confirm the vehicle and driver', false],
+        ['Load and count the cartons', false],
+        ['Take the challan number', false],
+      ]),
+      sop: [
+        '1. Check the lot is finished and passed before booking a vehicle.',
+        '2. Count cartons twice — once at the table, once at the gate.',
+        '3. Photograph the loaded vehicle before it leaves.',
+        '4. Write the challan number into the dispatch register the same day.',
+        '5. Message the customer the vehicle number and expected arrival.',
+      ].join('\n'),
+      estimated_minutes: 90,
+      active: true,
+      created_by: DEMO_OWNER_ID,
+      created_at: at(-90, '09:00'),
+    },
+    {
+      id: 'c-factory-visit',
+      name: 'Factory visit',
+      base_type: 'meeting',
+      color: 'cyan',
+      icon: 'factory',
+      checklist: check('c-factory-visit', [
+        ['Agree the time with the unit', false],
+        ['Walk the floor and check quality', false],
+        ['Write down what was agreed', false],
+      ]),
+      sop: [
+        '1. Call ahead so the supervisor is on the floor when you arrive.',
+        '2. Check three pieces at random from each running lot.',
+        '3. Raise any quality problem there and then, not by phone afterwards.',
+        '4. Note the agreed fix and the date it will be done by.',
+      ].join('\n'),
+      estimated_minutes: 150,
+      active: true,
+      created_by: DEMO_OWNER_ID,
+      created_at: at(-80, '09:00'),
+    },
+    {
+      id: 'c-payment',
+      name: 'Payment follow-up',
+      base_type: 'call',
+      color: 'green',
+      icon: 'wallet',
+      checklist: check('c-payment', [
+        ['Check the outstanding amount', false],
+        ['Call and ask for a date', false],
+        ['Record the promised date', false],
+      ]),
+      sop: [
+        '1. Open the ledger and confirm the exact outstanding figure first.',
+        '2. Ask for a specific date, not "soon".',
+        '3. Repeat the date back so both sides agree it.',
+        '4. Record the date here — anything not written down did not happen.',
+      ].join('\n'),
+      estimated_minutes: 25,
+      active: true,
+      created_by: 'p-vikram',
+      created_at: at(-70, '09:00'),
+    },
+  ]
+}
+
+function buildTasks(): SeedTask[] {
   return [
     {
       id: 't-fabric-stock',
@@ -551,6 +636,14 @@ function buildRoutines(): TaskRoutine[] {
         ['Record what was discussed', false],
         ['Add any follow-up date', false],
       ]),
+      sop: [
+        '1. Call before 11am — after that the shops get busy with customers.',
+        '2. Ask what sold yesterday, by set, not just a total.',
+        '3. Ask directly whether anything needs a top-up.',
+        '4. Write the answers down here before making the next call.',
+      ].join('\n'),
+      estimated_minutes: 30,
+      category_id: null,
       active: true,
       last_generated_on: today,
       created_at: at(-60, '09:00'),
@@ -567,6 +660,13 @@ function buildRoutines(): TaskRoutine[] {
         ['Enter them into the sheet', false],
         ['Check the totals match', false],
       ]),
+      sop: [
+        '1. Collect the outward challans and the inward gate slips together.',
+        '2. Enter outward first, then inward — never mix the two passes.',
+        '3. Totals must match the gate register before you close the sheet.',
+      ].join('\n'),
+      estimated_minutes: 45,
+      category_id: null,
       active: true,
       last_generated_on: today,
       created_at: at(-45, '09:00'),
@@ -583,6 +683,9 @@ function buildRoutines(): TaskRoutine[] {
         ['Finish the work', false],
         ['Note the outcome', false],
       ]),
+      sop: null,
+      estimated_minutes: 20,
+      category_id: null,
       active: false,
       last_generated_on: null,
       created_at: at(-30, '09:00'),
@@ -590,10 +693,59 @@ function buildRoutines(): TaskRoutine[] {
   ]
 }
 
+/** SOPs for a few of the seeded jobs, so the feature is visible on load. */
+const SEED_SOPS: Record<string, { sop?: string; minutes?: number; category?: string }> = {
+  't-fabric-stock': {
+    minutes: 75,
+    sop: [
+      '1. Start at the main godown, left rack to right rack — never jump around.',
+      '2. Weigh anything that looks part-used rather than estimating it.',
+      '3. Match every shade against the register before moving to the next rack.',
+      '4. Anything under 40 kg goes on the reorder list the same evening.',
+    ].join('\n'),
+  },
+  't-repeat-order-call': {
+    minutes: 20,
+    category: 'c-payment',
+    sop: [
+      '1. Open the customer’s last order before dialling, so sizes are in front of you.',
+      '2. Confirm quantity and size break-up, and repeat them back.',
+      '3. Never confirm a rate on the call — say you will check and revert.',
+      '4. Write the discussion down here immediately after hanging up.',
+    ].join('\n'),
+  },
+  't-dyeing-dispatch': { minutes: 90, category: 'c-dispatch' },
+  't-cutting-plan': {
+    minutes: 240,
+    sop: [
+      '1. Check the marker against the size ratio before laying a single ply.',
+      '2. Keep lay height under 60 plies for this fabric or the edges drift.',
+      '3. Bundle and ticket every size as it comes off the table.',
+      '4. Record the wastage percentage for the evening report.',
+    ].join('\n'),
+  },
+  't-growth-meeting': { minutes: 60 },
+  't-stock-movement': { minutes: 45 },
+  't-morning-call': { minutes: 30 },
+}
+
 export function buildDemoDataset(): DemoDataset {
+  const categories = buildCategories()
+
+  const tasks: Task[] = buildTasks().map((seed) => {
+    const extra = SEED_SOPS[seed.id]
+    return {
+      ...seed,
+      sop: seed.sop ?? extra?.sop ?? null,
+      estimated_minutes: seed.estimated_minutes ?? extra?.minutes ?? null,
+      category_id: seed.category_id ?? extra?.category ?? null,
+    }
+  })
+
   return {
     profiles: PROFILES,
-    tasks: buildTasks(),
+    categories,
+    tasks,
     activity: buildActivity(),
     handoffs: buildHandoffs(),
     routines: buildRoutines(),

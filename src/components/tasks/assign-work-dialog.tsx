@@ -1,10 +1,12 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CalendarDays, Loader2, Plus, Repeat, Sparkles, Sun, X } from 'lucide-react'
-import { useEffect, useMemo } from 'react'
+import { BookOpen, CalendarDays, Loader2, Plus, Repeat, Settings2, Sparkles, Sun, Wand2, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
+import { toast } from 'sonner'
 import { PersonAvatar } from '@/components/shared/person-avatar'
+import { CategoryManagerDialog } from '@/components/tasks/category-manager'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -18,11 +20,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCurrentUser } from '@/hooks/use-flowline'
-import { useCreateTask, useProfiles } from '@/lib/data/queries'
-import { checklistTemplate, TASK_TYPES, taskTypeMeta } from '@/lib/task-meta'
-import type { TaskType } from '@/lib/types'
-import { cn, combineDayAndTime, todayKey, uid } from '@/lib/utils'
+import { useCategories, useCreateTask, useDraftWorkPlan, useProfiles } from '@/lib/data/queries'
+import { CATEGORY_ICONS, categoryStyles, checklistTemplate, TASK_TYPES, taskTypeMeta } from '@/lib/task-meta'
+import type { TaskCategory, TaskType } from '@/lib/types'
+import { cn, combineDayAndTime, humanMinutes, todayKey, uid } from '@/lib/utils'
 import { createTaskSchema, type CreateTaskValues } from '@/lib/validators'
 import { useUIStore } from '@/store/ui'
 
@@ -36,6 +39,9 @@ function defaultValues(assigneeId: string | null): CreateTaskValues {
     due_time: '17:00',
     recurrence: 'once',
     checklist: checklistTemplate('general'),
+    sop: '',
+    estimated_minutes: 0,
+    category_id: null,
   }
 }
 
@@ -49,7 +55,11 @@ export function AssignWorkDialog() {
   const open = assignOpen || quickAddOpen
   const { isAdmin } = useCurrentUser()
   const { data: profiles } = useProfiles()
+  const { data: categories } = useCategories()
   const createTask = useCreateTask()
+  const draft = useDraftWorkPlan()
+  const [sopOpen, setSopOpen] = useState(false)
+  const [manageOpen, setManageOpen] = useState(false)
 
   const form = useForm<CreateTaskValues>({
     resolver: zodResolver(createTaskSchema),
@@ -62,10 +72,18 @@ export function AssignWorkDialog() {
   const taskType = form.watch('task_type')
   const recurrence = form.watch('recurrence')
   const assignedTo = form.watch('assigned_to')
+  const categoryId = form.watch('category_id')
+  const sopValue = form.watch('sop')
+  const estimatedMinutes = Number(form.watch('estimated_minutes')) || 0
+
+  const customTypes = useMemo(() => (categories ?? []).filter((c) => c.active), [categories])
 
   // Re-arm the form each time the dialog opens, keeping any preselected person.
   useEffect(() => {
-    if (open) form.reset(defaultValues(assignAssigneeId))
+    if (open) {
+      form.reset(defaultValues(assignAssigneeId))
+      setSopOpen(false)
+    }
   }, [open, assignAssigneeId, form])
 
   const assignee = useMemo(
@@ -78,10 +96,44 @@ export function AssignWorkDialog() {
     setQuickAdd(false)
   }
 
+  /** Built-in type: clears any custom category and loads its template. */
   function onTypeChange(next: TaskType) {
     form.setValue('task_type', next, { shouldValidate: true })
-    // A fresh type brings its own sensible checklist.
+    form.setValue('category_id', null)
     replace(checklistTemplate(next))
+  }
+
+  /** Custom type: carries its own base type, checklist, SOP and estimate. */
+  function onCategoryChange(category: TaskCategory) {
+    form.setValue('task_type', category.base_type, { shouldValidate: true })
+    form.setValue('category_id', category.id)
+    if (category.sop) form.setValue('sop', category.sop)
+    if (category.estimated_minutes) form.setValue('estimated_minutes', category.estimated_minutes)
+    replace(category.checklist.map((c) => ({ ...c, id: uid(), done: false })))
+  }
+
+  function onDraft() {
+    const title = form.getValues('title').trim()
+    if (title.length < 3) {
+      form.setError('title', { message: 'Give the job a name first, then I can draft the steps.' })
+      return
+    }
+    draft.mutate(
+      { title, taskType: form.getValues('task_type') },
+      {
+        onSuccess: (result) => {
+          form.setValue('sop', result.sop)
+          form.setValue('estimated_minutes', result.estimated_minutes)
+          replace(result.checklist.map((label) => ({ id: uid(), label, done: false })))
+          setSopOpen(true)
+          toast.success(result.ai ? 'Draft written.' : 'Draft prepared from a template.', {
+            description: result.ai
+              ? 'Read it through and change anything that is not how you work.'
+              : 'No AI key is configured, so this came from the built-in template.',
+          })
+        },
+      },
+    )
   }
 
   const onSubmit = form.handleSubmit((values) => {
@@ -100,6 +152,9 @@ export function AssignWorkDialog() {
         checklist: values.checklist.filter((c) => c.label.trim().length > 0),
         recurrence: values.recurrence,
         due_time: values.due_time,
+        sop: values.sop?.trim() ? values.sop.trim() : null,
+        estimated_minutes: values.estimated_minutes && values.estimated_minutes > 0 ? values.estimated_minutes : null,
+        category_id: values.category_id ?? null,
       },
       { onSuccess: close },
     )
@@ -126,13 +181,31 @@ export function AssignWorkDialog() {
           {/* Title */}
           <div className="space-y-1.5">
             <Label htmlFor="task-title">What needs doing?</Label>
-            <Input
-              id="task-title"
-              autoFocus
-              placeholder="For example: Call Sunrise Garments about the repeat order"
-              aria-invalid={Boolean(form.formState.errors.title)}
-              {...form.register('title')}
-            />
+            <div className="flex gap-2">
+              <Input
+                id="task-title"
+                autoFocus
+                placeholder="For example: Call Sunrise Garments about the repeat order"
+                aria-invalid={Boolean(form.formState.errors.title)}
+                {...form.register('title')}
+              />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="glass"
+                    size="icon"
+                    onClick={onDraft}
+                    disabled={draft.isPending}
+                    aria-label="Draft the procedure and checklist"
+                    className="shrink-0"
+                  >
+                    {draft.isPending ? <Loader2 className="animate-spin" /> : <Wand2 className="text-primary" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Draft the procedure, checklist and time for me</TooltipContent>
+              </Tooltip>
+            </div>
             {form.formState.errors.title && (
               <p role="alert" className="text-[12px] text-red-600">
                 {form.formState.errors.title.message}
@@ -142,11 +215,24 @@ export function AssignWorkDialog() {
 
           {/* Type */}
           <div className="space-y-2">
-            <Label>What kind of work is it?</Label>
+            <div className="flex items-center justify-between">
+              <Label>What kind of work is it?</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setManageOpen(true)}
+                className="gap-1.5 text-[12px]"
+              >
+                <Settings2 className="!size-3.5" />
+                Manage types
+              </Button>
+            </div>
+
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {TASK_TYPES.map((option) => {
                 const Icon = option.icon
-                const active = taskType === option.value
+                const active = taskType === option.value && !categoryId
                 return (
                   <button
                     key={option.value}
@@ -158,7 +244,7 @@ export function AssignWorkDialog() {
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       active
                         ? cn(option.chip, 'shadow-raised font-medium')
-                        : 'bg-white/70 text-zinc-600 ring-zinc-200/80 hover:bg-white',
+                        : 'bg-white/70 text-zinc-600 ring-zinc-200/80 hover:bg-white dark:bg-zinc-100/60',
                     )}
                   >
                     <Icon className="h-4 w-4" strokeWidth={2} />
@@ -167,7 +253,40 @@ export function AssignWorkDialog() {
                 )
               })}
             </div>
-            <p className="text-[11.5px] text-zinc-400">{typeMeta.hint}</p>
+
+            {/* The company's own types, sitting alongside the built-ins. */}
+            {customTypes.length > 0 && (
+              <>
+                <p className="pt-1 text-[11px] font-medium uppercase tracking-wider text-zinc-400">Your work types</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {customTypes.map((category) => {
+                    const styles = categoryStyles(category.color)
+                    const Icon = CATEGORY_ICONS[category.icon] ?? TASK_TYPES[TASK_TYPES.length - 1].icon
+                    const active = categoryId === category.id
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => onCategoryChange(category)}
+                        className={cn(
+                          'btn-3d flex flex-col items-start gap-1.5 rounded-xl px-3 py-2.5 text-left ring-1 ring-inset transition-all',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                          active
+                            ? cn(styles.chip, 'shadow-raised font-medium')
+                            : 'bg-white/70 text-zinc-600 ring-zinc-200/80 hover:bg-white dark:bg-zinc-100/60',
+                        )}
+                      >
+                        <Icon className="h-4 w-4" strokeWidth={2} />
+                        <span className="line-clamp-1 text-[12.5px] leading-tight">{category.name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+
+            {!categoryId && <p className="text-[11.5px] text-zinc-400">{typeMeta.hint}</p>}
           </div>
 
           {/* Assignee */}
@@ -316,6 +435,71 @@ export function AssignWorkDialog() {
             )}
           </div>
 
+          {/* How long it should take */}
+          <div className="space-y-1.5">
+            <Label htmlFor="task-minutes">How long should it take? (optional)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="task-minutes"
+                type="number"
+                min={0}
+                max={1440}
+                step={5}
+                inputMode="numeric"
+                placeholder="45"
+                className="w-28"
+                aria-describedby="task-minutes-help"
+                {...form.register('estimated_minutes')}
+              />
+              <span id="task-minutes-help" className="text-[12px] text-zinc-500">
+                minutes
+                {estimatedMinutes > 0 && (
+                  <span className="ml-1.5 font-medium text-zinc-700">· {humanMinutes(estimatedMinutes)}</span>
+                )}
+              </span>
+            </div>
+            <p className="text-[11.5px] text-zinc-400">
+              Shown on the card and on daily routines, so the day can actually be planned.
+            </p>
+          </div>
+
+          {/* SOP */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="task-sop" className="flex items-center gap-1.5">
+                <BookOpen className="h-3.5 w-3.5 text-zinc-400" />
+                Standard procedure (optional)
+              </Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSopOpen((v) => !v)}
+                className="text-[12px]"
+              >
+                {sopOpen ? 'Hide' : sopValue ? 'Show' : 'Add one'}
+              </Button>
+            </div>
+            {sopOpen && (
+              <>
+                <Textarea
+                  id="task-sop"
+                  placeholder={'1. Check the register before you start.\n2. Do the work.\n3. Write down what happened.'}
+                  className="min-h-[120px] font-mono text-[12.5px] leading-relaxed"
+                  {...form.register('sop')}
+                />
+                <p className="text-[11.5px] text-zinc-400">
+                  Whoever holds this job sees these steps inside the task. Use one numbered line per step.
+                </p>
+              </>
+            )}
+            {!sopOpen && sopValue && (
+              <p className="line-clamp-2 rounded-lg bg-primary/[.06] px-3 py-2 text-[12px] text-zinc-600">
+                {sopValue.split('\n')[0]}…
+              </p>
+            )}
+          </div>
+
           {/* Notes */}
           <div className="space-y-1.5">
             <Label htmlFor="task-description">Anything else they should know? (optional)</Label>
@@ -338,6 +522,8 @@ export function AssignWorkDialog() {
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <CategoryManagerDialog open={manageOpen} onOpenChange={setManageOpen} />
     </Dialog>
   )
 }

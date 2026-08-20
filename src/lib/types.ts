@@ -29,6 +29,29 @@ export interface Profile {
   created_at: string
 }
 
+/**
+ * A work type the company defined for itself, on top of the seven built-ins.
+ * `base_type` keeps it grouped correctly on My Day and in the evening report —
+ * a custom "Factory visit" that behaves like a meeting still lands under
+ * Meetings without every consumer needing to know it exists.
+ */
+export interface TaskCategory {
+  id: string
+  name: string
+  base_type: TaskType
+  /** Key into the fixed palette in task-meta.ts. */
+  color: string
+  /** Key into the fixed icon set in task-meta.ts. */
+  icon: string
+  checklist: ChecklistItem[]
+  /** Default SOP copied onto every task made from this category. */
+  sop: string | null
+  estimated_minutes: number | null
+  active: boolean
+  created_by: string | null
+  created_at: string
+}
+
 export interface Task {
   id: string
   title: string
@@ -42,6 +65,11 @@ export interface Task {
   completed_at: string | null
   task_type: TaskType
   checklist: ChecklistItem[]
+  /** Standing instructions for how this job is done properly. */
+  sop: string | null
+  /** How long this work is expected to take, in minutes. */
+  estimated_minutes: number | null
+  category_id: string | null
   routine_id: string | null
   routine_on: string | null
   created_at: string
@@ -73,6 +101,10 @@ export interface TaskRoutine {
   /** 'HH:MM' local wall-clock time the generated task is due. */
   due_time: string
   checklist: ChecklistItem[]
+  sop: string | null
+  /** Shown on Assign Work so the day can actually be planned. */
+  estimated_minutes: number | null
+  category_id: string | null
   active: boolean
   last_generated_on: string | null
   created_at: string
@@ -89,6 +121,21 @@ export interface CreateTaskInput {
   recurrence: Recurrence
   /** 'HH:MM' — only used when recurrence is 'daily'. */
   due_time?: string
+  sop?: string | null
+  estimated_minutes?: number | null
+  category_id?: string | null
+}
+
+export interface SaveCategoryInput {
+  /** Present when editing an existing work type. */
+  id?: string
+  name: string
+  base_type: TaskType
+  color: string
+  icon: string
+  checklist: ChecklistItem[]
+  sop?: string | null
+  estimated_minutes?: number | null
 }
 
 export interface AddEmployeeInput {
