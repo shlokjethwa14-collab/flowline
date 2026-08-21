@@ -41,15 +41,17 @@ export function StatCard({ label, value, hint, icon: Icon, tone = 'neutral', per
   return (
     <Card className={cn('bloom-host group glass-card-hover p-5', BLOOMS[tone], className)}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <p className="text-[12px] font-medium uppercase tracking-wider text-zinc-400">{label}</p>
-          <p className="text-[28px] font-semibold leading-none tracking-[-0.022em] text-zinc-900 tabular-nums">
+        <div className="min-w-0 space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-zinc-400">{label}</p>
+          {/* Headline figures carry the page, the way the balance does in
+              the reference. Tight tracking, tabular so they never jitter. */}
+          <p className="text-[38px] font-semibold leading-[0.95] tracking-[-0.035em] text-zinc-900 tabular-nums">
             {value}
           </p>
         </div>
         <div
           className={cn(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px]',
+            'flex h-11 w-11 shrink-0 items-center justify-center rounded-full',
             'transition-transform duration-base ease-apple-pop group-hover:scale-[1.07]',
             TILES[tone],
           )}
@@ -73,7 +75,7 @@ export function StatCardSkeleton() {
           <Skeleton className="h-3 w-20" />
           <Skeleton className="h-7 w-14" />
         </div>
-        <Skeleton className="h-10 w-10 rounded-[13px]" />
+        <Skeleton className="h-11 w-11 rounded-full" />
       </div>
       <Skeleton className="mt-4 h-3 w-32" />
     </Card>

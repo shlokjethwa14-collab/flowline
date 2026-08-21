@@ -5,8 +5,6 @@ import {
   CalendarClock,
   CheckCircle2,
   Loader2,
-  Pause,
-  Play,
   Plus,
   Repeat,
   Timer,
@@ -23,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useProfileMap } from '@/hooks/use-flowline'
 import {
@@ -209,29 +208,20 @@ function RoutinesPanel() {
               </p>
             </div>
 
-            <Badge variant={routine.active ? 'success' : 'default'}>{routine.active ? 'Running' : 'Paused'}</Badge>
-
-            <div className="flex items-center gap-1.5">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="glass"
-                    size="icon-sm"
-                    disabled={setActive.isPending}
-                    onClick={() => setActive.mutate({ routineId: routine.id, active: !routine.active })}
-                    aria-label={routine.active ? `Pause ${routine.title}` : `Start ${routine.title}`}
-                  >
-                    {setActive.isPending ? (
-                      <Loader2 className="animate-spin" />
-                    ) : routine.active ? (
-                      <Pause />
-                    ) : (
-                      <Play />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{routine.active ? 'Pause this routine' : 'Start this routine again'}</TooltipContent>
-              </Tooltip>
+            <div className="flex items-center gap-2.5">
+              <span className="hidden text-[12px] font-medium text-zinc-500 sm:inline">
+                {routine.active ? 'Running' : 'Paused'}
+              </span>
+              {/* Not wrapped in a Tooltip: Radix's trigger sets its own
+                  data-state, which would overwrite the switch's checked
+                  state and stop the on-style ever applying. */}
+              <Switch
+                tone="green"
+                checked={routine.active}
+                disabled={setActive.isPending}
+                onCheckedChange={(next) => setActive.mutate({ routineId: routine.id, active: next })}
+                aria-label={routine.active ? `Pause ${routine.title}` : `Start ${routine.title}`}
+              />
 
               <Tooltip>
                 <TooltipTrigger asChild>

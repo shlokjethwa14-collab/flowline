@@ -25,51 +25,55 @@
     color-scheme: light;
 
     --background: 0 0% 100%;
-    --foreground: 225 15% 9%;
+    --foreground: 0 0% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 225 15% 9%;
+    --card-foreground: 0 0% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 225 15% 9%;
-    --primary: 250 84% 62%;
+    --popover-foreground: 0 0% 9%;
+    /* Monochrome by default. Ink on glass — colour is light, not paint. */
+    --primary: 0 0% 8%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 225 12% 96%;
-    --secondary-foreground: 225 12% 22%;
-    --muted: 225 12% 96%;
-    --muted-foreground: 225 8% 46%;
-    --accent: 250 60% 96%;
-    --accent-foreground: 250 60% 35%;
-    --destructive: 4 74% 54%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 18%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 44%;
+    --accent: 0 0% 95%;
+    --accent-foreground: 0 0% 12%;
+    --destructive: 4 74% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 225 14% 90%;
-    --input: 225 14% 90%;
-    --ring: 250 84% 62%;
-    --radius: 1rem;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 20%;
 
-    /* --- Neutral ramp. Inverted wholesale in dark. ------------------ */
+    --radius: 1.25rem;
+    /* Everything that can be a pill, is one. */
+    --radius-pill: 9999px;
+
+    /* --- Neutral ramp. True greys; inverted wholesale in dark. ------ */
     --z-50: 0 0% 98%;
-    --z-100: 240 5% 96%;
-    --z-200: 240 6% 90%;
-    --z-300: 240 5% 84%;
-    --z-400: 240 5% 65%;
-    --z-500: 240 4% 46%;
-    --z-600: 240 5% 34%;
-    --z-700: 240 5% 26%;
-    --z-800: 240 4% 16%;
-    --z-900: 240 6% 10%;
-    --z-950: 240 10% 4%;
+    --z-100: 0 0% 96%;
+    --z-200: 0 0% 91%;
+    --z-300: 0 0% 84%;
+    --z-400: 0 0% 64%;
+    --z-500: 0 0% 45%;
+    --z-600: 0 0% 33%;
+    --z-700: 0 0% 25%;
+    --z-800: 0 0% 15%;
+    --z-900: 0 0% 9%;
+    --z-950: 0 0% 3%;
 
     /* --- Edge discipline -------------------------------------------- */
-    --g-fill-top: rgb(255 255 255 / 0.94);
-    --g-fill-mid: rgb(252 253 255 / 0.8);
-    --g-fill-bot: rgb(246 248 252 / 0.66);
+    --g-fill-top: rgb(255 255 255 / 0.92);
+    --g-fill-mid: rgb(252 252 252 / 0.78);
+    --g-fill-bot: rgb(247 247 247 / 0.64);
 
-    --g-ring: hsl(225 20% 62% / 0.26);
-    --g-ring-strong: hsl(225 20% 62% / 0.36);
+    --g-ring: hsl(0 0% 62% / 0.24);
+    --g-ring-strong: hsl(0 0% 55% / 0.34);
 
     --g-rim-1: rgb(255 255 255 / 1);
     --g-rim-2: rgb(255 255 255 / 0.62);
     --g-rim-3: rgb(255 255 255 / 0.08);
-    --g-rim-4: hsl(225 20% 62% / 0.16);
+    --g-rim-4: hsl(0 0% 62% / 0.14);
     --g-rim-5: rgb(255 255 255 / 0.5);
     --g-rim-6: rgb(255 255 255 / 0.88);
 
@@ -77,74 +81,76 @@
     --g-inner-top: rgb(255 255 255 / 0.9);
     --g-spec: rgb(255 255 255 / 1);
 
-    --g-sh-1: hsl(225 30% 20% / 0.05);
-    --g-sh-2: hsl(225 30% 20% / 0.1);
-    --g-sh-3: hsl(225 30% 20% / 0.18);
-    --g-body: hsl(225 30% 40% / 0.24);
-    --g-bot: hsl(225 20% 70% / 0.22);
+    --g-sh-1: hsl(0 0% 8% / 0.04);
+    --g-sh-2: hsl(0 0% 8% / 0.09);
+    --g-sh-3: hsl(0 0% 8% / 0.16);
+    --g-body: hsl(0 0% 40% / 0.2);
+    --g-bot: hsl(0 0% 70% / 0.2);
 
-    --g-well-a: hsl(225 16% 94% / 0.92);
-    --g-well-b: hsl(225 16% 97% / 0.66);
-    --g-well-sh: hsl(225 30% 30% / 0.09);
+    --g-well-a: hsl(0 0% 94% / 0.9);
+    --g-well-b: hsl(0 0% 97% / 0.64);
+    --g-well-sh: hsl(0 0% 25% / 0.08);
 
     --glass-blur: 26px;
     --glass-sat: 190%;
 
-    --iris-1: 199 92% 74%;
-    --iris-2: 250 84% 72%;
-    --iris-3: 162 72% 68%;
-    --iris-4: 24 94% 68%;
+    --iris-1: 214 92% 70%;
+    --iris-2: 268 88% 70%;
+    --iris-3: 162 72% 62%;
+    --iris-4: 24 94% 62%;
   }
 
   .dark {
     color-scheme: dark;
 
-    --background: 225 20% 7%;
-    --foreground: 225 20% 96%;
-    --card: 225 18% 11%;
-    --card-foreground: 225 20% 96%;
-    --popover: 225 18% 11%;
-    --popover-foreground: 225 20% 96%;
-    --primary: 252 92% 72%;
-    --primary-foreground: 252 40% 10%;
-    --secondary: 225 14% 18%;
-    --secondary-foreground: 225 16% 92%;
-    --muted: 225 14% 18%;
-    --muted-foreground: 225 9% 64%;
-    --accent: 250 40% 22%;
-    --accent-foreground: 250 80% 88%;
-    --destructive: 4 78% 62%;
+    /* Near-black, not slate. The reference goes almost to true black and
+       lets the glass carry every bit of separation. */
+    --background: 0 0% 4%;
+    --foreground: 0 0% 96%;
+    --card: 0 0% 9%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 0 0% 97%;
+    --primary-foreground: 0 0% 6%;
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 0 0% 92%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 62%;
+    --accent: 0 0% 18%;
+    --accent-foreground: 0 0% 94%;
+    --destructive: 4 80% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 225 12% 22%;
-    --input: 225 12% 22%;
-    --ring: 252 92% 72%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 0 0% 88%;
 
-    /* The ramp flips end for end, cooled slightly to sit with the glass. */
-    --z-50: 225 16% 12%;
-    --z-100: 225 14% 16%;
-    --z-200: 225 12% 23%;
-    --z-300: 225 10% 33%;
-    --z-400: 225 8% 56%;
-    --z-500: 225 9% 67%;
-    --z-600: 225 12% 77%;
-    --z-700: 225 14% 85%;
-    --z-800: 225 16% 91%;
-    --z-900: 225 20% 96%;
+    /* The ramp flips end for end. */
+    --z-50: 0 0% 10%;
+    --z-100: 0 0% 14%;
+    --z-200: 0 0% 21%;
+    --z-300: 0 0% 31%;
+    --z-400: 0 0% 55%;
+    --z-500: 0 0% 66%;
+    --z-600: 0 0% 76%;
+    --z-700: 0 0% 84%;
+    --z-800: 0 0% 91%;
+    --z-900: 0 0% 96%;
     --z-950: 0 0% 100%;
 
     /* Same three cues, re-tuned. The rim is dimmer but never absent —
        without it dark glass collapses into a flat grey rectangle. */
-    --g-fill-top: rgb(38 42 58 / 0.82);
-    --g-fill-mid: rgb(30 34 48 / 0.7);
-    --g-fill-bot: rgb(22 25 37 / 0.62);
+    --g-fill-top: rgb(32 32 32 / 0.82);
+    --g-fill-mid: rgb(25 25 25 / 0.72);
+    --g-fill-bot: rgb(18 18 18 / 0.64);
 
-    --g-ring: hsl(225 40% 3% / 0.7);
-    --g-ring-strong: hsl(225 40% 3% / 0.85);
+    --g-ring: hsl(0 0% 0% / 0.7);
+    --g-ring-strong: hsl(0 0% 0% / 0.86);
 
     --g-rim-1: rgb(255 255 255 / 0.34);
     --g-rim-2: rgb(255 255 255 / 0.18);
     --g-rim-3: rgb(255 255 255 / 0.03);
-    --g-rim-4: hsl(225 20% 8% / 0.3);
+    --g-rim-4: hsl(0 0% 4% / 0.3);
     --g-rim-5: rgb(255 255 255 / 0.12);
     --g-rim-6: rgb(255 255 255 / 0.26);
 
@@ -152,15 +158,15 @@
     --g-inner-top: rgb(255 255 255 / 0.16);
     --g-spec: rgb(255 255 255 / 0.3);
 
-    --g-sh-1: hsl(225 50% 2% / 0.4);
-    --g-sh-2: hsl(225 50% 2% / 0.5);
-    --g-sh-3: hsl(225 50% 2% / 0.6);
-    --g-body: hsl(225 60% 2% / 0.5);
-    --g-bot: hsl(225 20% 4% / 0.5);
+    --g-sh-1: hsl(0 0% 0% / 0.42);
+    --g-sh-2: hsl(0 0% 0% / 0.52);
+    --g-sh-3: hsl(0 0% 0% / 0.62);
+    --g-body: hsl(0 0% 0% / 0.5);
+    --g-bot: hsl(0 0% 0% / 0.5);
 
-    --g-well-a: hsl(225 22% 9% / 0.9);
-    --g-well-b: hsl(225 20% 13% / 0.7);
-    --g-well-sh: hsl(225 60% 2% / 0.55);
+    --g-well-a: hsl(0 0% 8% / 0.9);
+    --g-well-b: hsl(0 0% 12% / 0.7);
+    --g-well-sh: hsl(0 0% 0% / 0.6);
 
     --glass-sat: 150%;
 
@@ -191,19 +197,19 @@
     position: fixed;
     inset: 0;
     z-index: -2;
+    /* Near-white and almost colourless. Colour arrives as bloom behind the
+       controls that need it, never as a wash across the page. */
     background:
-      radial-gradient(1200px 680px at 8% -10%, hsl(var(--iris-2) / 0.16), transparent 60%),
-      radial-gradient(980px 620px at 94% 2%, hsl(var(--iris-1) / 0.14), transparent 58%),
-      radial-gradient(820px 760px at 58% 112%, hsl(var(--iris-3) / 0.12), transparent 62%),
-      linear-gradient(178deg, #ffffff 0%, #f7f8fb 44%, #eff1f6 100%);
+      radial-gradient(1100px 620px at 10% -8%, hsl(var(--iris-2) / 0.07), transparent 58%),
+      radial-gradient(900px 560px at 92% 4%, hsl(var(--iris-1) / 0.06), transparent 56%),
+      linear-gradient(178deg, #fdfdfd 0%, #f6f6f6 46%, #efefef 100%);
   }
 
   .dark body::before {
     background:
-      radial-gradient(1200px 680px at 8% -10%, hsl(var(--iris-2) / 0.22), transparent 60%),
-      radial-gradient(980px 620px at 94% 2%, hsl(var(--iris-1) / 0.16), transparent 58%),
-      radial-gradient(820px 760px at 58% 112%, hsl(var(--iris-3) / 0.12), transparent 62%),
-      linear-gradient(178deg, hsl(225 24% 9%) 0%, hsl(225 22% 7%) 46%, hsl(225 26% 5%) 100%);
+      radial-gradient(1100px 620px at 10% -8%, hsl(var(--iris-2) / 0.12), transparent 58%),
+      radial-gradient(900px 560px at 92% 4%, hsl(var(--iris-1) / 0.09), transparent 56%),
+      linear-gradient(178deg, hsl(0 0% 7%) 0%, hsl(0 0% 5%) 46%, hsl(0 0% 3%) 100%);
   }
 
   body::after {
@@ -355,11 +361,11 @@
   }
 
   .glass-panel {
-    @apply glass rounded-2xl;
+    @apply glass rounded-3xl;
   }
 
   .glass-card {
-    @apply glass rounded-2xl;
+    @apply glass rounded-3xl;
     transform: translateZ(0);
     transition:
       transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
@@ -443,6 +449,54 @@
   .bloom-host:hover::before,
   .bloom-host[data-active='true']::before {
     opacity: 1;
+  }
+
+  /* --- Neon bloom ----------------------------------------------------
+     The accent buttons in the reference sheet sit in a large, very soft
+     halo that spills onto the surface behind them. It is a separate layer
+     underneath the control, not a shadow on it — a shadow that big reads
+     as blur, this reads as light.
+
+     `.neon` expects `--neon` (the hue) on the same element. */
+
+  .neon {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .neon::before {
+    content: '';
+    position: absolute;
+    inset: -55%;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(closest-side, hsl(var(--neon) / 0.85), hsl(var(--neon) / 0.25) 55%, transparent 78%);
+    filter: blur(14px);
+    opacity: 0.85;
+    transition:
+      opacity 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+      transform 0.42s cubic-bezier(0.32, 0.72, 0, 1);
+    pointer-events: none;
+  }
+
+  .neon:hover::before {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+
+  .neon:active::before {
+    opacity: 0.7;
+    transform: scale(0.97);
+  }
+
+  /* A hairline of the same hue on the control itself, so the halo reads as
+     coming from the object rather than floating behind it. */
+  .neon-edge {
+    box-shadow:
+      0 0 0 1px hsl(var(--neon) / 0.5),
+      0 1px 2px hsl(0 0% 0% / 0.12),
+      inset 0 1px 0 rgb(255 255 255 / 0.45),
+      inset 0 0 0 1px rgb(255 255 255 / 0.16);
   }
 
   /* ==================================================================
@@ -568,6 +622,14 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+  /* Hues for `.neon`. */
+  .neon-warm { --neon: 18 96% 58%; }
+  .neon-cool { --neon: 224 92% 62%; }
+  .neon-violet { --neon: 268 90% 66%; }
+  .neon-green { --neon: 150 78% 46%; }
+  .neon-amber { --neon: 38 96% 56%; }
+  .neon-rose { --neon: 344 90% 60%; }
+
   .bloom-primary { --bloom: hsl(var(--primary) / 0.55); }
   .bloom-cyan { --bloom: hsl(var(--iris-1) / 0.6); }
   .bloom-teal { --bloom: hsl(var(--iris-3) / 0.6); }

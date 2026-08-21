@@ -9,7 +9,7 @@ export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ className, ...props }, ref) => (
   <textarea
     ref={ref}
-    className={cn(inputSurface, 'flex min-h-[88px] resize-y px-3.5 py-2.5 text-sm', className)}
+    className={cn(inputSurface, 'flex min-h-[88px] resize-y px-4 py-3 text-sm', className)}
     {...props}
   />
 ))
