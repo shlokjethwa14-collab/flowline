@@ -14,6 +14,10 @@ interface UIState {
   /** Add-teammate dialog; managerId preselects who they report to. */
   addPersonOpen: boolean
   addPersonManagerId: string | null
+  /** Call recorder; taskId ties the call to a job when opened from one. */
+  callOpen: boolean
+  callTaskId: string | null
+  callCounterparty: string
   /** Ctrl+K quick add. */
   quickAddOpen: boolean
   /** Mobile navigation drawer. */
@@ -29,6 +33,8 @@ interface UIState {
   closeAssign: () => void
   openAddPerson: (managerId?: string | null) => void
   closeAddPerson: () => void
+  openCall: (taskId?: string | null, counterparty?: string) => void
+  closeCall: () => void
   setQuickAdd: (open: boolean) => void
   setNavOpen: (open: boolean) => void
   setAllWorkView: (view: AllWorkView) => void
@@ -44,6 +50,9 @@ export const useUIStore = create<UIState>()(
       assignAssigneeId: null,
       addPersonOpen: false,
       addPersonManagerId: null,
+      callOpen: false,
+      callTaskId: null,
+      callCounterparty: '',
       quickAddOpen: false,
       navOpen: false,
       allWorkView: 'list',
@@ -56,6 +65,9 @@ export const useUIStore = create<UIState>()(
       closeAssign: () => set({ assignOpen: false, assignAssigneeId: null }),
       openAddPerson: (managerId = null) => set({ addPersonOpen: true, addPersonManagerId: managerId }),
       closeAddPerson: () => set({ addPersonOpen: false, addPersonManagerId: null }),
+      openCall: (taskId = null, counterparty = '') =>
+        set({ callOpen: true, callTaskId: taskId, callCounterparty: counterparty }),
+      closeCall: () => set({ callOpen: false, callTaskId: null, callCounterparty: '' }),
       setQuickAdd: (open) => set({ quickAddOpen: open }),
       setNavOpen: (open) => set({ navOpen: open }),
       setAllWorkView: (view) => set({ allWorkView: view }),

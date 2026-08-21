@@ -1,6 +1,8 @@
 import type {
   ActivityLog,
+  CallLog,
   EveningReport,
+  EveningReportCallLog,
   EveningReportCall,
   EveningReportHandoff,
   EveningReportRow,
@@ -16,6 +18,7 @@ export interface ReportInputs {
   profiles: Profile[]
   activity: ActivityLog[]
   handoffs: TaskHandoff[]
+  callLogs?: CallLog[]
 }
 
 /** A task belongs to a day if it was due that day or finished that day. */
@@ -25,7 +28,14 @@ function isScheduledOn(task: Task, dayKey: string): boolean {
   return false
 }
 
-export function buildEveningReport({ dayKey, tasks, profiles, activity, handoffs }: ReportInputs): EveningReport {
+export function buildEveningReport({
+  dayKey,
+  tasks,
+  profiles,
+  activity,
+  handoffs,
+  callLogs = [],
+}: ReportInputs): EveningReport {
   const profileById = new Map(profiles.map((p) => [p.id, p]))
   const scheduled = tasks.filter((t) => isScheduledOn(t, dayKey))
 
@@ -73,8 +83,19 @@ export function buildEveningReport({ dayKey, tasks, profiles, activity, handoffs
       to: handoff.to_user_id ? (profileById.get(handoff.to_user_id) ?? null) : null,
     }))
 
+  // Calls recorded today, with everything they turned into.
+  const dayCalls: EveningReportCallLog[] = callLogs
+    .filter((c) => toDayKey(c.created_at) === dayKey)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .map((call) => ({
+      call,
+      recorder: call.recorded_by ? (profileById.get(call.recorded_by) ?? null) : null,
+    }))
+
   return {
     date: dayKey,
+    callLogs: dayCalls,
+    rolledOver: scheduled.filter((t) => t.rollover_count > 0 && t.status !== 'done').length,
     totalScheduled: scheduled.length,
     completed: completed.length,
     completionPercent: scheduled.length === 0 ? 0 : Math.round((completed.length / scheduled.length) * 100),
@@ -111,6 +132,8 @@ export function renderReportText(report: EveningReport): string {
       report.callsScheduled === 0 ? 'No calls were scheduled' : report.allCallsDone ? 'YES' : 'NO — see below'
     }`,
   )
+  lines.push(`Calls recorded ......... ${report.callLogs.length}`)
+  lines.push(`Carried from before .... ${report.rolledOver}`)
   lines.push('')
 
   lines.push('CALLS AND WHAT WAS DISCUSSED')
@@ -127,6 +150,31 @@ export function renderReportText(report: EveningReport): string {
       } else {
         for (const note of call.notes) {
           lines.push(`            Discussion: ${note.content.replace(/\s+/g, ' ').trim()}`)
+        }
+      }
+      lines.push('')
+    }
+  }
+
+  lines.push('CALLS RECORDED, AND WHAT CAME OUT OF THEM')
+  lines.push(thin)
+  if (report.callLogs.length === 0) {
+    lines.push('No calls were recorded today.')
+  } else {
+    for (const entry of report.callLogs) {
+      lines.push(`${entry.call.counterparty}  (logged by ${entry.recorder?.full_name ?? 'someone'})`)
+      lines.push(`  ${entry.call.summary.replace(/\s+/g, ' ').trim()}`)
+      if (entry.call.commitments.length > 0) {
+        lines.push('  Promised:')
+        for (const c of entry.call.commitments) {
+          const when = c.due_date ? `${c.due_date}${c.due_time ? ` ${c.due_time}` : ''}` : 'no date'
+          lines.push(`    - [${when}] ${c.title} (${c.certainty})`)
+        }
+      }
+      if (entry.call.intel.length > 0) {
+        lines.push('  Said about us:')
+        for (const i of entry.call.intel) {
+          lines.push(`    - (${i.kind}) ${i.note.replace(/\s+/g, ' ').trim()}`)
         }
       }
       lines.push('')

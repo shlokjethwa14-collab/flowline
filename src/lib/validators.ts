@@ -24,7 +24,8 @@ export const createTaskSchema = z
     assigned_to: z.string().min(1, 'Choose who is doing this.'),
     due_date: z.string().min(1, 'Pick a date.'),
     due_time: z.string().regex(timeRegex, 'Use a time like 17:30.'),
-    recurrence: z.enum(['once', 'daily']),
+    recurrence: z.enum(['once', 'daily', 'weekly', 'monthly']),
+    horizon: z.enum(['day', 'week', 'month']).optional(),
     checklist: z.array(checklistItemSchema).max(12, 'Twelve steps is plenty for one task.'),
     sop: z.string().trim().max(4000, 'Keep the procedure under 4000 characters.').optional().or(z.literal('')),
     /** 0 means "not estimated"; the form leaves it blank by default. */

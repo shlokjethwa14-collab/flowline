@@ -1,5 +1,6 @@
 import type {
   ActivityLog,
+  CallLog,
   ChecklistItem,
   Profile,
   Task,
@@ -7,7 +8,7 @@ import type {
   TaskHandoff,
   TaskRoutine,
 } from '@/lib/types'
-import { toDayKey } from '@/lib/utils'
+import { addDaysKey, toDayKey, todayKey } from '@/lib/utils'
 
 export interface DemoDataset {
   profiles: Profile[]
@@ -16,11 +17,20 @@ export interface DemoDataset {
   activity: ActivityLog[]
   handoffs: TaskHandoff[]
   routines: TaskRoutine[]
+  calls: CallLog[]
 }
 
 /** Seeds omit the fields that get sensible defaults, to keep this file readable. */
-type SeedTask = Omit<Task, 'sop' | 'estimated_minutes' | 'category_id'> &
-  Partial<Pick<Task, 'sop' | 'estimated_minutes' | 'category_id'>>
+type SeedTask = Omit<
+  Task,
+  'sop' | 'estimated_minutes' | 'category_id' | 'horizon' | 'original_due_date' | 'rollover_count' | 'call_log_id'
+> &
+  Partial<
+    Pick<
+      Task,
+      'sop' | 'estimated_minutes' | 'category_id' | 'horizon' | 'original_due_date' | 'rollover_count' | 'call_log_id'
+    >
+  >
 
 /** An instant `dayOffset` days from today at local wall-clock `time`. */
 function at(dayOffset: number, time: string): string {
@@ -48,6 +58,16 @@ const PROFILES: Profile[] = [
     created_at: at(-400, '09:00'),
   },
   {
+    // A second owner. Family firms usually have more than one — the chart
+    // supports any number of people with nobody above them.
+    id: 'p-anil',
+    role: 'admin',
+    full_name: 'Anil Mehta',
+    job_title: 'Managing Partner',
+    reports_to: null,
+    created_at: at(-395, '09:00'),
+  },
+  {
     id: 'p-priya',
     role: 'admin',
     full_name: 'Priya Shah',
@@ -68,7 +88,7 @@ const PROFILES: Profile[] = [
     role: 'employee',
     full_name: 'Vikram Rao',
     job_title: 'Accounts Manager',
-    reports_to: DEMO_OWNER_ID,
+    reports_to: 'p-anil',
     created_at: at(-360, '09:00'),
   },
   {
@@ -644,6 +664,7 @@ function buildRoutines(): TaskRoutine[] {
       ].join('\n'),
       estimated_minutes: 30,
       category_id: null,
+      cadence: 'daily',
       active: true,
       last_generated_on: today,
       created_at: at(-60, '09:00'),
@@ -667,6 +688,7 @@ function buildRoutines(): TaskRoutine[] {
       ].join('\n'),
       estimated_minutes: 45,
       category_id: null,
+      cadence: 'daily',
       active: true,
       last_generated_on: today,
       created_at: at(-45, '09:00'),
@@ -686,9 +708,92 @@ function buildRoutines(): TaskRoutine[] {
       sop: null,
       estimated_minutes: 20,
       category_id: null,
+      cadence: 'weekly',
       active: false,
       last_generated_on: null,
       created_at: at(-30, '09:00'),
+    },
+  ]
+}
+
+function buildCalls(): CallLog[] {
+  return [
+    {
+      id: 'call-sunrise',
+      task_id: 't-repeat-order-call',
+      counterparty: 'Sunrise Garments — Mr. Bhavesh',
+      recorded_by: DEMO_EMPLOYEE_ID,
+      duration_seconds: 412,
+      transcript: [
+        'Arjun: Bhavesh bhai, namaste. Calling about the navy joggers — you had asked about repeating them.',
+        'Bhavesh: Yes yes. We need the same lot again. 240 pieces, sizes 26 to 34, same ratio as last time.',
+        'Arjun: Understood. Same rate as last time?',
+        'Bhavesh: That is the thing. Last time it was 385. Now Krishna Textiles is quoting me 360 for something similar. See if you can do something.',
+        'Arjun: I cannot confirm the rate on the call, I will check with sir and revert.',
+        'Bhavesh: Fine. But do it fast, I have to close this by month end.',
+        'Arjun: Noted. One more thing, the last delivery — everything was fine?',
+        'Bhavesh: Mostly. Two pieces in the grey set had loose stitching at the waistband. Small thing, we managed. But please tell the tailor.',
+        'Arjun: I am sorry about that, I will pass it on today itself.',
+        'Bhavesh: Also I am coming to Ahmedabad on the 28th. I will visit the factory in the morning, around 11. Keep the new samples ready.',
+        'Arjun: Perfect, I will note it down. And the payment for the last two bills?',
+        'Bhavesh: I will release it on Friday. Full amount.',
+        'Arjun: Thank you Bhavesh bhai. I will call back once I have the rate.',
+      ].join('\n'),
+      summary:
+        'Sunrise Garments want to repeat the navy joggers — 240 pieces, sizes 26 to 34, same ratio. They are pushing on rate: last time was ₹385, and Krishna Textiles has quoted them ₹360 for something comparable. Arjun did not commit to a rate and will revert. Bhavesh also flagged loose stitching on two pieces in the grey set from the last delivery, said he will release the full payment for the last two bills on Friday, and will visit the factory on the 28th at about 11am to see the new samples. He wants the order closed by month end.',
+      commitments: [
+        {
+          id: 'cm-1',
+          title: 'Factory visit — Bhavesh, Sunrise Garments (keep new samples ready)',
+          kind: 'visit',
+          due_date: addDaysKey(todayKey(), 8),
+          due_time: '11:00',
+          certainty: 'stated',
+          quote: 'I am coming to Ahmedabad on the 28th. I will visit the factory in the morning, around 11.',
+          task_id: null,
+        },
+        {
+          id: 'cm-2',
+          title: 'Collect payment from Sunrise Garments — last two bills, full amount',
+          kind: 'payment',
+          due_date: addDaysKey(todayKey(), 2),
+          due_time: '11:00',
+          certainty: 'stated',
+          quote: 'I will release it on Friday. Full amount.',
+          task_id: null,
+        },
+        {
+          id: 'cm-3',
+          title: 'Call Bhavesh back with the confirmed rate on the navy joggers',
+          kind: 'callback',
+          due_date: addDaysKey(todayKey(), 1),
+          due_time: '16:00',
+          certainty: 'implied',
+          quote: 'I will call back once I have the rate. / But do it fast, I have to close this by month end.',
+          task_id: null,
+        },
+      ],
+      intel: [
+        {
+          id: 'in-1',
+          kind: 'competitor',
+          note: 'Krishna Textiles has quoted Sunrise ₹360 against our ₹385 for a comparable joggers lot.',
+          quote: 'Now Krishna Textiles is quoting me 360 for something similar.',
+        },
+        {
+          id: 'in-2',
+          kind: 'complaint',
+          note: 'Two pieces in the grey set had loose stitching at the waistband. Customer absorbed it but wants the tailor told.',
+          quote: 'Two pieces in the grey set had loose stitching at the waistband.',
+        },
+        {
+          id: 'in-3',
+          kind: 'price',
+          note: 'Rate pressure of about ₹25 per piece. A decision is needed before month end or the order may move.',
+          quote: 'See if you can do something. / I have to close this by month end.',
+        },
+      ],
+      created_at: at(0, '13:12'),
     },
   ]
 }
@@ -729,18 +834,117 @@ const SEED_SOPS: Record<string, { sop?: string; minutes?: number; category?: str
   't-morning-call': { minutes: 30 },
 }
 
+/** Work that belongs to the week or the month rather than to today. */
+function buildPeriodWork(): SeedTask[] {
+  const now = new Date().toISOString()
+  const base = {
+    status: 'todo' as const,
+    is_blocked: false,
+    status_changed_at: now,
+    completed_at: null,
+    routine_id: null,
+    routine_on: null,
+    created_at: now,
+  }
+  return [
+    {
+      ...base,
+      id: 't-week-retailers',
+      title: 'Sign up two new retailers in Kalupur',
+      description: 'The week is not finished until two new shops have agreed to stock the boys’ collection.',
+      assigned_to: 'p-neha',
+      created_by: DEMO_OWNER_ID,
+      due_date: null,
+      task_type: 'growth',
+      checklist: check('t-week-retailers', [
+        ['List the shops worth approaching', true],
+        ['Visit and show the catalogue', false],
+        ['Get the first order confirmed', false],
+      ]),
+      horizon: 'week',
+      estimated_minutes: 300,
+    },
+    {
+      ...base,
+      id: 't-week-wastage',
+      title: 'Bring cutting wastage under 4%',
+      description: 'Check the marker efficiency on every lot this week and note where the waste is going.',
+      assigned_to: 'p-imran',
+      created_by: 'p-priya',
+      due_date: null,
+      task_type: 'long',
+      status: 'in_progress',
+      checklist: check('t-week-wastage', [
+        ['Measure wastage on each lot', true],
+        ['Find the two worst markers', false],
+        ['Re-lay and re-measure', false],
+      ]),
+      horizon: 'week',
+      estimated_minutes: 240,
+    },
+    {
+      ...base,
+      id: 't-month-collection',
+      title: 'Launch the winter boys’ collection',
+      description: 'Twelve styles, sampled, costed and shown to the top ten retailers before the month closes.',
+      assigned_to: 'p-priya',
+      created_by: DEMO_OWNER_ID,
+      due_date: null,
+      task_type: 'growth',
+      status: 'in_progress',
+      checklist: check('t-month-collection', [
+        ['Finalise the twelve styles', true],
+        ['Get all samples stitched', false],
+        ['Cost each style', false],
+        ['Show to the top ten retailers', false],
+      ]),
+      horizon: 'month',
+      estimated_minutes: 1200,
+    },
+    {
+      ...base,
+      id: 't-month-receivables',
+      title: 'Clear everything outstanding over 60 days',
+      description: 'Nothing older than 60 days should still be sitting on the books when the month ends.',
+      assigned_to: 'p-vikram',
+      created_by: 'p-anil',
+      due_date: null,
+      task_type: 'call',
+      checklist: check('t-month-receivables', [
+        ['List everything past 60 days', true],
+        ['Call each one and get a date', false],
+        ['Escalate whatever has no date', false],
+      ]),
+      horizon: 'month',
+      estimated_minutes: 480,
+    },
+  ]
+}
+
 export function buildDemoDataset(): DemoDataset {
   const categories = buildCategories()
+  const calls = buildCalls()
 
-  const tasks: Task[] = buildTasks().map((seed) => {
+  const tasks: Task[] = [...buildTasks(), ...buildPeriodWork()].map((seed) => {
     const extra = SEED_SOPS[seed.id]
     return {
       ...seed,
       sop: seed.sop ?? extra?.sop ?? null,
       estimated_minutes: seed.estimated_minutes ?? extra?.minutes ?? null,
       category_id: seed.category_id ?? extra?.category ?? null,
+      horizon: seed.horizon ?? 'day',
+      original_due_date: seed.original_due_date ?? null,
+      rollover_count: seed.rollover_count ?? 0,
+      call_log_id: seed.call_log_id ?? null,
     }
   })
+
+  // One task already carried forward, so the badge is visible on load.
+  const carried = tasks.find((t) => t.id === 't-cutting-plan')
+  if (carried) {
+    carried.original_due_date = addDaysKey(todayKey(), -3)
+    carried.rollover_count = 2
+  }
 
   return {
     profiles: PROFILES,
@@ -749,5 +953,6 @@ export function buildDemoDataset(): DemoDataset {
     activity: buildActivity(),
     handoffs: buildHandoffs(),
     routines: buildRoutines(),
+    calls,
   }
 }

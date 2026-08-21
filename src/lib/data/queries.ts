@@ -11,7 +11,9 @@ import type {
   AddEmployeeInput,
   ChecklistItem,
   CreateTaskInput,
+  CallLog,
   Profile,
+  SaveCallInput,
   SaveCategoryInput,
   Task,
   TaskCategory,
@@ -29,6 +31,7 @@ export const qk = {
   handoffs: ['handoffs'] as const,
   routines: ['routines'] as const,
   categories: ['categories'] as const,
+  calls: ['calls'] as const,
 }
 
 /* ------------------------------------------------------------------ */
@@ -57,6 +60,38 @@ export function useHandoffs() {
 
 export function useRoutines() {
   return useQuery({ queryKey: qk.routines, queryFn: api.fetchRoutines, staleTime: 30_000 })
+}
+
+export function useCalls() {
+  return useQuery({ queryKey: qk.calls, queryFn: api.fetchCalls, staleTime: 15_000 })
+}
+
+export function useSaveCall() {
+  const client = useQueryClient()
+  return useMutation<CallLog, Error, SaveCallInput>({
+    mutationFn: (input) => api.saveCall(input),
+    onSuccess: (call) => {
+      const dated = call.commitments.filter((c) => c.due_date).length
+      toast.success('Call saved.', {
+        description:
+          dated > 0
+            ? `${dated} follow-up ${dated === 1 ? 'job was' : 'jobs were'} put on the calendar.`
+            : 'No dated promises were found, so nothing was scheduled.',
+      })
+      void client.invalidateQueries({ queryKey: qk.calls })
+      void client.invalidateQueries({ queryKey: qk.tasks })
+      void client.invalidateQueries({ queryKey: qk.activity })
+    },
+    onError: (error) => toast.error(api.friendlyError(error)),
+  })
+}
+
+/** Reads a transcript and pulls out the summary, promises and intel. */
+export function useAnalyseCall() {
+  return useMutation<api.CallAnalysis, Error, { transcript: string; counterparty: string }>({
+    mutationFn: ({ transcript, counterparty }) => api.analyseCall(transcript, counterparty),
+    onError: (error) => toast.error(api.friendlyError(error)),
+  })
 }
 
 export function useCategories() {
@@ -120,6 +155,7 @@ function invalidateAll(client: QueryClient): void {
   void client.invalidateQueries({ queryKey: qk.handoffs })
   void client.invalidateQueries({ queryKey: qk.routines })
   void client.invalidateQueries({ queryKey: qk.categories })
+  void client.invalidateQueries({ queryKey: qk.calls })
   void client.invalidateQueries({ queryKey: qk.profiles })
   void client.invalidateQueries({ queryKey: qk.session })
 }
@@ -165,18 +201,28 @@ export function useRealtimeSync(): void {
   }, [client])
 }
 
-/** Materialises today's daily routines once per app load. */
-export function useRoutineGeneration(enabled: boolean): void {
+/**
+ * Once per app load: materialise the routines due this period, then carry
+ * yesterday's unfinished work forward. Both are idempotent, so running them
+ * on every load costs nothing and means nobody has to remember to.
+ */
+export function useDayRollForward(enabled: boolean): void {
   const client = useQueryClient()
   useEffect(() => {
     if (!enabled) return
     let cancelled = false
-    void api.generateRoutineTasks().then((count) => {
-      if (!cancelled && count > 0) {
+    void (async () => {
+      const generated = await api.generateRoutineTasks()
+      const rolled = await api.rollOverUnfinished()
+      if (cancelled) return
+      if (generated > 0 || rolled > 0) {
         void client.invalidateQueries({ queryKey: qk.tasks })
         void client.invalidateQueries({ queryKey: qk.routines })
       }
-    })
+      if (rolled > 0) {
+        toast.info(`${rolled} unfinished ${rolled === 1 ? 'job was' : 'jobs were'} carried forward to today.`)
+      }
+    })()
     return () => {
       cancelled = true
     }
@@ -271,7 +317,7 @@ export function useCreateTask() {
     mutationFn: (input) => api.createTask(input),
     onSuccess: (task, input) => {
       toast.success(
-        input.recurrence === 'daily' ? 'Daily routine started — today’s task is ready.' : 'Work assigned.',
+        input.recurrence === 'once' ? 'Work assigned.' : `${input.recurrence} routine started — the first copy is ready.`,
         { description: task.title },
       )
       void client.invalidateQueries({ queryKey: qk.tasks })

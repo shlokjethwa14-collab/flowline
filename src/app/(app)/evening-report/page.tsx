@@ -5,9 +5,12 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
+  CalendarPlus,
   ChevronRight,
   Download,
   MessageSquareOff,
+  Mic,
+  MicOff,
   Moon,
   Phone,
   PhoneOff,
@@ -27,10 +30,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useActivity, useHandoffs, useProfiles, useTasks } from '@/lib/data/queries'
+import { useActivity, useCalls, useHandoffs, useProfiles, useTasks } from '@/lib/data/queries'
 import { buildEveningReport, renderReportText } from '@/lib/report'
 import type { EveningReport } from '@/lib/types'
-import { cn, formatFriendlyDay, formatTime, todayKey } from '@/lib/utils'
+import { cn, formatDate, formatFriendlyDay, formatTime, todayKey } from '@/lib/utils'
 import { useUIStore } from '@/store/ui'
 
 function shiftDay(dayKey: string, days: number): string {
@@ -108,8 +111,9 @@ function EveningReportContent() {
   const { data: profiles, isLoading: profilesLoading } = useProfiles()
   const { data: activity, isLoading: activityLoading } = useActivity()
   const { data: handoffs, isLoading: handoffsLoading } = useHandoffs()
+  const { data: calls, isLoading: callsLoading } = useCalls()
 
-  const loading = tasksLoading || profilesLoading || activityLoading || handoffsLoading
+  const loading = tasksLoading || profilesLoading || activityLoading || handoffsLoading || callsLoading
 
   const report = useMemo(
     () =>
@@ -119,8 +123,9 @@ function EveningReportContent() {
         profiles: profiles ?? [],
         activity: activity ?? [],
         handoffs: handoffs ?? [],
+        callLogs: calls ?? [],
       }),
-    [day, tasks, profiles, activity, handoffs],
+    [day, tasks, profiles, activity, handoffs, calls],
   )
 
   const hasAnything = report.totalScheduled > 0 || report.handoffs.length > 0
@@ -290,6 +295,90 @@ function EveningReportContent() {
                           </li>
                         ))}
                       </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* Recorded calls — the summary, the promises, and what was said
+              about us. This is the section the owner actually reads. */}
+          <section className="space-y-3 xl:col-span-2">
+            <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.011em] text-zinc-800">
+              <Mic className="h-4 w-4 text-zinc-400" strokeWidth={1.9} />
+              Calls recorded today
+            </h2>
+            {report.callLogs.length === 0 ? (
+              <EmptyState
+                icon={MicOff}
+                title="No calls were recorded"
+                description="Use “Log call” in the top bar during a call. Flowline writes the summary and schedules whatever was promised."
+              />
+            ) : (
+              <ul className="grid gap-3 xl:grid-cols-2">
+                {report.callLogs.map(({ call, recorder }) => (
+                  <li key={call.id} className="glass-panel space-y-3 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <PersonAvatar profile={recorder} className="h-6 w-6" />
+                      <span className="text-[13.5px] font-semibold text-zinc-900">{call.counterparty}</span>
+                      <Badge variant="outline" className="ml-auto">
+                        {formatTime(call.created_at)}
+                      </Badge>
+                      {call.duration_seconds ? (
+                        <Badge variant="outline">{Math.round(call.duration_seconds / 60)}m</Badge>
+                      ) : null}
+                    </div>
+
+                    <p className="text-[13px] leading-relaxed text-zinc-600">{call.summary}</p>
+
+                    {call.commitments.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                          Promised — now on the calendar
+                        </p>
+                        <ul className="space-y-1.5">
+                          {call.commitments.map((c) => (
+                            <li key={c.id} className="flex items-start gap-2 text-[12.5px] text-zinc-600">
+                              <CalendarPlus className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                              <span>
+                                <span className="font-medium text-zinc-800">{c.title}</span>
+                                {c.due_date && (
+                                  <span className="text-zinc-500">
+                                    {' '}
+                                    — {formatDate(`${c.due_date}T12:00:00`)}
+                                    {c.due_time ? `, ${c.due_time}` : ''}
+                                  </span>
+                                )}
+                                {c.certainty === 'implied' && (
+                                  <Badge variant="warning" className="ml-1.5">
+                                    worked out
+                                  </Badge>
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {call.intel.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                          Said about us
+                        </p>
+                        <ul className="space-y-1.5">
+                          {call.intel.map((i) => (
+                            <li
+                              key={i.id}
+                              className="border-l-2 border-amber-300/70 pl-2.5 text-[12.5px] leading-relaxed text-zinc-600"
+                            >
+                              <span className="font-medium capitalize text-zinc-700">{i.kind}: </span>
+                              {i.note}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </li>
                 ))}

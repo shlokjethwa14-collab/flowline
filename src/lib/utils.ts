@@ -150,6 +150,51 @@ export function isWorkingDay(dayKey: string): boolean {
   return d.getDay() !== 0
 }
 
+/* ------------------------------------------------------------------ */
+/* Weeks and months                                                    */
+/* ------------------------------------------------------------------ */
+
+export function addDaysKey(dayKey: string, days: number): string {
+  const d = new Date(`${dayKey}T12:00:00`)
+  d.setDate(d.getDate() + days)
+  return toDayKey(d)
+}
+
+/** Monday-first, matching the calendar grid and how the week is worked. */
+export function startOfWeekKey(value: string | Date = new Date()): string {
+  const d = typeof value === 'string' ? new Date(`${value}T12:00:00`) : new Date(value)
+  const shift = (d.getDay() + 6) % 7
+  d.setDate(d.getDate() - shift)
+  return toDayKey(d)
+}
+
+export function endOfWeekKey(value: string | Date = new Date()): string {
+  return addDaysKey(startOfWeekKey(value), 6)
+}
+
+export function startOfMonthKey(value: string | Date = new Date()): string {
+  const d = typeof value === 'string' ? new Date(`${value}T12:00:00`) : new Date(value)
+  return toDayKey(new Date(d.getFullYear(), d.getMonth(), 1))
+}
+
+export function endOfMonthKey(value: string | Date = new Date()): string {
+  const d = typeof value === 'string' ? new Date(`${value}T12:00:00`) : new Date(value)
+  return toDayKey(new Date(d.getFullYear(), d.getMonth() + 1, 0))
+}
+
+export function isWithin(dayKey: string, fromKey: string, toKey: string): boolean {
+  return dayKey >= fromKey && dayKey <= toKey
+}
+
+/** Whole days left in the current week / month, counting today. */
+export function daysLeftInPeriod(horizon: 'week' | 'month'): number {
+  const today = todayKey()
+  const end = horizon === 'week' ? endOfWeekKey() : endOfMonthKey()
+  const a = new Date(`${today}T12:00:00`).getTime()
+  const b = new Date(`${end}T12:00:00`).getTime()
+  return Math.max(0, Math.round((b - a) / 86_400_000) + 1)
+}
+
 /** "45m", "1h 30m", "2h" — for planning a day, not for stopwatch precision. */
 export function humanMinutes(minutes: number | null | undefined): string {
   if (!minutes || minutes <= 0) return '—'

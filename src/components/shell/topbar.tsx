@@ -1,6 +1,6 @@
 'use client'
 
-import { LogOut, Menu, Plus, RotateCcw, Search, ShieldCheck, User, UserCog } from 'lucide-react'
+import { LogOut, Menu, Mic, Plus, RotateCcw, Search, ShieldCheck, User, UserCog } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -190,6 +190,7 @@ function AccountMenu() {
 export function Topbar() {
   const setNavOpen = useUIStore((s) => s.setNavOpen)
   const setQuickAdd = useUIStore((s) => s.setQuickAdd)
+  const openCall = useUIStore((s) => s.openCall)
   const { isAdmin, isDemo } = useCurrentUser()
 
   return (
@@ -208,6 +209,17 @@ export function Topbar() {
         <GlobalSearch />
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Anyone can log a call — that is the point of logging calls. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="glass" size="sm" onClick={() => openCall(null)} className="gap-1.5">
+                <Mic className="text-red-500" />
+                <span className="hidden text-[12.5px] sm:inline">Log call</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Record a call and schedule what was promised</TooltipContent>
+          </Tooltip>
+
           <ThemeToggle />
           {isDemo && <DemoRoleSwitch />}
 

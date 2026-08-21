@@ -1,7 +1,20 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { BookOpen, CalendarDays, Loader2, Plus, Repeat, Settings2, Sparkles, Sun, Wand2, X } from 'lucide-react'
+import {
+  BookOpen,
+  CalendarClock,
+  CalendarDays,
+  CalendarRange,
+  Loader2,
+  Plus,
+  Repeat,
+  Settings2,
+  Sparkles,
+  Sun,
+  Wand2,
+  X,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -42,6 +55,7 @@ function defaultValues(assigneeId: string | null): CreateTaskValues {
     sop: '',
     estimated_minutes: 0,
     category_id: null,
+    horizon: 'day',
   }
 }
 
@@ -73,6 +87,7 @@ export function AssignWorkDialog() {
   const recurrence = form.watch('recurrence')
   const assignedTo = form.watch('assigned_to')
   const categoryId = form.watch('category_id')
+  const horizon = form.watch('horizon') ?? 'day'
   const sopValue = form.watch('sop')
   const estimatedMinutes = Number(form.watch('estimated_minutes')) || 0
 
@@ -138,7 +153,7 @@ export function AssignWorkDialog() {
 
   const onSubmit = form.handleSubmit((values) => {
     const dueIso =
-      values.recurrence === 'daily'
+      values.recurrence !== 'once'
         ? combineDayAndTime(todayKey(), values.due_time)
         : combineDayAndTime(values.due_date, values.due_time)
 
@@ -155,6 +170,7 @@ export function AssignWorkDialog() {
         sop: values.sop?.trim() ? values.sop.trim() : null,
         estimated_minutes: values.estimated_minutes && values.estimated_minutes > 0 ? values.estimated_minutes : null,
         category_id: values.category_id ?? null,
+        horizon: values.recurrence === 'weekly' ? 'week' : values.recurrence === 'monthly' ? 'month' : values.horizon,
       },
       { onSuccess: close },
     )
@@ -331,6 +347,8 @@ export function AssignWorkDialog() {
                   [
                     { value: 'once', label: 'Only once', icon: CalendarDays },
                     { value: 'daily', label: 'Every day', icon: Repeat },
+                    { value: 'weekly', label: 'Every week', icon: CalendarRange },
+                    { value: 'monthly', label: 'Every month', icon: CalendarClock },
                   ] as const
                 ).map((option) => {
                   const Icon = option.icon
@@ -358,11 +376,11 @@ export function AssignWorkDialog() {
 
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label htmlFor="task-date">{recurrence === 'daily' ? 'Starts' : 'Date'}</Label>
+                <Label htmlFor="task-date">{recurrence === 'once' ? 'Date' : 'Starts'}</Label>
                 <Input
                   id="task-date"
                   type="date"
-                  disabled={recurrence === 'daily'}
+                  disabled={recurrence !== 'once'}
                   aria-invalid={Boolean(form.formState.errors.due_date)}
                   {...form.register('due_date')}
                 />
@@ -379,12 +397,56 @@ export function AssignWorkDialog() {
             </div>
           </div>
 
-          {recurrence === 'daily' && (
+          {recurrence !== 'once' && (
             <p className="flex items-start gap-2 rounded-xl bg-primary/[.06] px-3 py-2.5 text-[12px] leading-relaxed text-primary ring-1 ring-inset ring-primary/15">
               <Sun className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              A fresh copy of this task appears every working day (Monday to Saturday). Today’s copy is created straight
-              away.
+              {recurrence === 'daily'
+                ? 'A fresh copy appears every working day (Monday to Saturday). Today’s copy is created straight away.'
+                : recurrence === 'weekly'
+                  ? 'A fresh copy appears at the start of each week, and counts as work for that whole week rather than one day.'
+                  : 'A fresh copy appears at the start of each month, and counts as work for that whole month.'}
             </p>
+          )}
+
+          {/* Horizon — only meaningful for one-off work; repeats set it. */}
+          {recurrence === 'once' && (
+            <div className="space-y-2">
+              <Label>When must it be finished?</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    { value: 'day', label: 'On the day', hint: 'Due at the time above' },
+                    { value: 'week', label: 'This week', hint: 'Any time this week' },
+                    { value: 'month', label: 'This month', hint: 'Any time this month' },
+                  ] as const
+                ).map((option) => {
+                  const active = horizon === option.value
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => form.setValue('horizon', option.value, { shouldValidate: true })}
+                      className={cn(
+                        'btn-3d flex flex-col items-start gap-0.5 rounded-xl px-3 py-2.5 text-left ring-1 ring-inset transition-all',
+                        active
+                          ? 'bg-primary/10 font-medium text-primary shadow-raised ring-primary/25'
+                          : 'bg-white/70 text-zinc-600 ring-zinc-200/80 hover:bg-white dark:bg-zinc-100/60',
+                      )}
+                    >
+                      <span className="text-[12.5px] leading-tight">{option.label}</span>
+                      <span className="text-[10.5px] text-zinc-400">{option.hint}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              {horizon !== 'day' && (
+                <p className="text-[11.5px] text-zinc-400">
+                  Period work sits in its own section on My Day and is never carried forward — it is not late until the
+                  period ends.
+                </p>
+              )}
+            </div>
           )}
 
           {/* Checklist */}
@@ -517,7 +579,7 @@ export function AssignWorkDialog() {
             </Button>
             <Button type="submit" disabled={createTask.isPending} className="gap-1.5">
               {createTask.isPending ? <Loader2 className="animate-spin" /> : <Sparkles />}
-              {recurrence === 'daily' ? 'Start daily routine' : 'Assign work'}
+              {recurrence === 'once' ? 'Assign work' : `Start ${recurrence} routine`}
             </Button>
           </DialogFooter>
         </form>

@@ -2,18 +2,22 @@
 
 import type {
   ActivityLog,
+  CallCommitment,
+  CallLog,
   ChecklistItem,
   CreateTaskInput,
   AddEmployeeInput,
   Profile,
+  SaveCallInput,
   SaveCategoryInput,
   Task,
   TaskCategory,
   TaskHandoff,
   TaskRoutine,
   TaskStatus,
+  TaskType,
 } from '@/lib/types'
-import { combineDayAndTime, isWorkingDay, todayKey, uid } from '@/lib/utils'
+import { combineDayAndTime, isWorkingDay, startOfWeekKey, toDayKey, todayKey, uid } from '@/lib/utils'
 import { buildDemoDataset, DEMO_EMPLOYEE_ID, DEMO_OWNER_ID, type DemoDataset } from './dataset'
 
 const STORAGE_KEY = 'flowline.demo.v3'
@@ -57,6 +61,7 @@ function readPersisted(): PersistedShape | null {
       activity: parsed.activity ?? [],
       handoffs: parsed.handoffs ?? [],
       routines: parsed.routines ?? [],
+      calls: parsed.calls ?? [],
       previewUserId: parsed.previewUserId ?? DEMO_OWNER_ID,
     }
   } catch {
@@ -77,6 +82,7 @@ function ensure(): DemoDataset {
     persist()
   }
   runRoutineGeneration()
+  runRollover()
   return state
 }
 
@@ -119,6 +125,119 @@ export function demoRoutines(): TaskRoutine[] {
 
 export function demoCategories(): TaskCategory[] {
   return [...ensure().categories]
+}
+
+export function demoCalls(): CallLog[] {
+  return [...ensure().calls]
+}
+
+export function demoSaveCall(input: SaveCallInput): CallLog {
+  const data = ensure()
+  const now = new Date().toISOString()
+  const call: CallLog = {
+    id: uid(),
+    task_id: input.task_id ?? null,
+    counterparty: input.counterparty.trim(),
+    recorded_by: previewUserId,
+    duration_seconds: input.duration_seconds ?? null,
+    transcript: input.transcript,
+    summary: input.summary,
+    commitments: input.commitments,
+    intel: input.intel,
+    created_at: now,
+  }
+  data.calls.push(call)
+
+  // Every commitment the owner kept becomes real, dated work.
+  for (const commitment of call.commitments) {
+    if (!commitment.due_date) continue
+    const task: Task = {
+      id: uid(),
+      title: commitment.title,
+      description: `From the call with ${call.counterparty}. They said: “${commitment.quote}”`,
+      status: 'todo',
+      assigned_to: input.assign_to ?? previewUserId,
+      created_by: previewUserId,
+      due_date: combineDayAndTime(commitment.due_date, commitment.due_time ?? '11:00'),
+      is_blocked: false,
+      status_changed_at: now,
+      completed_at: null,
+      task_type: commitmentTaskType(commitment.kind),
+      checklist: [],
+      sop: null,
+      estimated_minutes: null,
+      category_id: null,
+      horizon: 'day',
+      original_due_date: null,
+      rollover_count: 0,
+      call_log_id: call.id,
+      routine_id: null,
+      routine_on: null,
+      created_at: now,
+    }
+    data.tasks.push(task)
+    commitment.task_id = task.id
+  }
+
+  // The summary is also the discussion note on the task the call came from.
+  if (call.task_id) {
+    data.activity.push({
+      id: uid(),
+      task_id: call.task_id,
+      user_id: previewUserId,
+      content: call.summary,
+      created_at: now,
+    })
+  }
+
+  notify()
+  return call
+}
+
+function commitmentTaskType(kind: CallCommitment['kind']): TaskType {
+  switch (kind) {
+    case 'meeting':
+    case 'visit':
+      return 'meeting'
+    case 'order':
+      return 'order'
+    case 'payment':
+    case 'callback':
+      return 'call'
+    case 'delivery':
+      return 'long'
+    default:
+      return 'general'
+  }
+}
+
+/**
+ * Carries unfinished dated work forward to today. Idempotent: a task already
+ * due today or later is left alone, so running it on every load is harmless.
+ * Week and month work is never rolled — it is not late until its period ends.
+ */
+export function runRollover(day: string = todayKey()): number {
+  const data = ensure()
+  let moved = 0
+
+  for (const task of data.tasks) {
+    if (task.status === 'done' || task.horizon !== 'day' || !task.due_date) continue
+    const dueKey = toDayKey(task.due_date)
+    if (dueKey >= day) continue
+
+    // Keep the time of day it was originally due.
+    const originalTime = new Date(task.due_date)
+    const hh = `${originalTime.getHours()}`.padStart(2, '0')
+    const mm = `${originalTime.getMinutes()}`.padStart(2, '0')
+
+    if (!task.original_due_date) task.original_due_date = dueKey
+    task.rollover_count += 1
+    task.due_date = combineDayAndTime(day, `${hh}:${mm}`)
+    moved += 1
+  }
+
+  if (moved > 0) persist()
+  return moved
 }
 
 export function demoSaveCategory(input: SaveCategoryInput): TaskCategory {
@@ -215,6 +334,13 @@ export function resetDemo(): void {
  * Idempotent: one task per active routine per working day. Safe to call on
  * every load because it keys off (routine_id, routine_on).
  */
+/** The idempotency key for a routine: the start of the period it covers. */
+function periodKeyFor(cadence: TaskRoutine['cadence'], day: string): string {
+  if (cadence === 'weekly') return startOfWeekKey(day)
+  if (cadence === 'monthly') return `${day.slice(0, 7)}-01`
+  return day
+}
+
 export function runRoutineGeneration(day: string = todayKey()): number {
   const data = ensure()
   if (!isWorkingDay(day)) return 0
@@ -222,7 +348,8 @@ export function runRoutineGeneration(day: string = todayKey()): number {
 
   for (const routine of data.routines) {
     if (!routine.active) continue
-    const already = data.tasks.some((t) => t.routine_id === routine.id && t.routine_on === day)
+    const periodKey = periodKeyFor(routine.cadence, day)
+    const already = data.tasks.some((t) => t.routine_id === routine.id && t.routine_on === periodKey)
     if (already) {
       routine.last_generated_on = day
       continue
@@ -244,8 +371,13 @@ export function runRoutineGeneration(day: string = todayKey()): number {
       sop: routine.sop,
       estimated_minutes: routine.estimated_minutes,
       category_id: routine.category_id,
+      // A weekly or monthly routine produces work for that whole period.
+      horizon: routine.cadence === 'daily' ? 'day' : routine.cadence === 'weekly' ? 'week' : 'month',
+      original_due_date: null,
+      rollover_count: 0,
+      call_log_id: null,
       routine_id: routine.id,
-      routine_on: day,
+      routine_on: periodKey,
       created_at: now,
     })
     routine.last_generated_on = day
@@ -265,7 +397,7 @@ export function demoCreateTask(input: CreateTaskInput): Task {
   const now = new Date().toISOString()
   const actor = previewUserId
 
-  if (input.recurrence === 'daily') {
+  if (input.recurrence !== 'once') {
     const routine: TaskRoutine = {
       id: uid(),
       title: input.title,
@@ -277,6 +409,7 @@ export function demoCreateTask(input: CreateTaskInput): Task {
       sop: input.sop?.trim() ? input.sop.trim() : null,
       estimated_minutes: input.estimated_minutes ?? null,
       category_id: input.category_id ?? null,
+      cadence: input.recurrence,
       active: true,
       last_generated_on: null,
       created_at: now,
@@ -299,8 +432,12 @@ export function demoCreateTask(input: CreateTaskInput): Task {
       sop: routine.sop,
       estimated_minutes: routine.estimated_minutes,
       category_id: routine.category_id,
+      horizon: routine.cadence === 'daily' ? 'day' : routine.cadence === 'weekly' ? 'week' : 'month',
+      original_due_date: null,
+      rollover_count: 0,
+      call_log_id: null,
       routine_id: routine.id,
-      routine_on: todayKey(),
+      routine_on: periodKeyFor(routine.cadence, todayKey()),
       created_at: now,
     }
     routine.last_generated_on = todayKey()
@@ -325,6 +462,10 @@ export function demoCreateTask(input: CreateTaskInput): Task {
     sop: input.sop?.trim() ? input.sop.trim() : null,
     estimated_minutes: input.estimated_minutes ?? null,
     category_id: input.category_id ?? null,
+    horizon: input.horizon ?? 'day',
+    original_due_date: null,
+    rollover_count: 0,
+    call_log_id: input.call_log_id ?? null,
     routine_id: null,
     routine_on: null,
     created_at: now,

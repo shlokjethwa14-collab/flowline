@@ -168,9 +168,19 @@ export function OrgChart({ roots, orphans, isAdmin, isLoading }: OrgChartProps) 
   return (
     <ZoomPan>
       <div className="flex min-w-max flex-col items-center gap-10 px-4 py-6 stagger">
-        {roots.map((root) => (
-          <Branch key={root.profile.id} node={root} isAdmin={isAdmin} />
-        ))}
+        {/* Family firms usually have more than one owner. Any number of
+            people can sit at the top; they stand side by side rather than
+            one pretending to be above the other. */}
+        {roots.length > 1 && (
+          <p className="text-[11.5px] font-medium uppercase tracking-wider text-zinc-400">
+            {roots.length} owners
+          </p>
+        )}
+        <div className="flex items-start justify-center gap-8 sm:gap-14">
+          {roots.map((root) => (
+            <Branch key={root.profile.id} node={root} isAdmin={isAdmin} />
+          ))}
+        </div>
 
         {orphans.length > 0 && (
           <div className="flex flex-col items-center gap-4">

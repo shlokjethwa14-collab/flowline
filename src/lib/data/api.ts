@@ -7,9 +7,13 @@ import * as demo from '@/lib/demo/store'
 import type {
   ActivityLog,
   AddEmployeeInput,
+  CallCommitment,
+  CallIntel,
+  CallLog,
   ChecklistItem,
   CreateTaskInput,
   Profile,
+  SaveCallInput,
   SaveCategoryInput,
   Task,
   TaskCategory,
@@ -186,6 +190,71 @@ export async function deleteCategory(categoryId: string): Promise<void> {
   raise(error)
 }
 
+export async function fetchCalls(): Promise<CallLog[]> {
+  if (IS_DEMO) return tick(demo.demoCalls())
+  const supabase = getBrowserClient()
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('call_logs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(500)
+  raise(error)
+  return data ?? []
+}
+
+export async function saveCall(input: SaveCallInput): Promise<CallLog> {
+  if (IS_DEMO) return tick(demo.demoSaveCall(input))
+  const supabase = getBrowserClient()
+  if (!supabase) throw new Error('Supabase is not configured.')
+  // One RPC so the call, its follow-up tasks and the discussion note either
+  // all land or none of them do.
+  const { data, error } = await supabase.rpc('log_call', {
+    p_task_id: input.task_id ?? undefined,
+    p_counterparty: input.counterparty.trim(),
+    p_duration_seconds: input.duration_seconds ?? undefined,
+    p_transcript: input.transcript,
+    p_summary: input.summary,
+    p_commitments: input.commitments,
+    p_intel: input.intel,
+    p_assign_to: input.assign_to ?? undefined,
+  })
+  raise(error)
+  if (!data) throw new Error('The call could not be saved.')
+  return data
+}
+
+export interface CallAnalysis {
+  summary: string
+  commitments: Array<{
+    title: string
+    kind: CallCommitment['kind']
+    due_date: string | null
+    due_time: string | null
+    certainty: CallCommitment['certainty']
+    quote: string
+  }>
+  intel: Array<{ kind: CallIntel['kind']; note: string; quote: string }>
+  ai: boolean
+}
+
+/** Sends a transcript to be read, summarised and mined for dated promises. */
+export async function analyseCall(transcript: string, counterparty: string): Promise<CallAnalysis> {
+  const response = await fetch('/api/ai/call-summary', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcript, counterparty, today: todayKey() }),
+  })
+  const payload = (await response.json()) as Partial<CallAnalysis> & { error?: string }
+  if (!response.ok) throw new Error(payload.error ?? 'The call could not be read.')
+  return {
+    summary: payload.summary ?? '',
+    commitments: payload.commitments ?? [],
+    intel: payload.intel ?? [],
+    ai: payload.ai ?? false,
+  }
+}
+
 export interface AiDraft {
   sop: string
   checklist: string[]
@@ -211,6 +280,16 @@ export async function draftWorkPlan(title: string, taskType: string): Promise<Ai
     estimated_minutes: payload.estimated_minutes ?? 30,
     ai: payload.ai ?? false,
   }
+}
+
+/** Carries yesterday's unfinished work forward. Idempotent. */
+export async function rollOverUnfinished(): Promise<number> {
+  if (IS_DEMO) return tick(demo.runRollover(), 0)
+  const supabase = getBrowserClient()
+  if (!supabase) return 0
+  const { data, error } = await supabase.rpc('roll_over_unfinished', { p_on: todayKey() })
+  if (error) return 0
+  return typeof data === 'number' ? data : 0
 }
 
 export async function generateRoutineTasks(): Promise<number> {
@@ -239,7 +318,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
   } = await supabase.auth.getUser()
   if (!user) throw new Error('Your session expired. Please sign in again.')
 
-  if (input.recurrence === 'daily') {
+  if (input.recurrence !== 'once') {
     const dueTime = input.due_time ?? '17:00'
     const { data: routine, error: routineError } = await supabase
       .from('task_routines')
@@ -253,6 +332,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
         sop: input.sop ?? null,
         estimated_minutes: input.estimated_minutes ?? null,
         category_id: input.category_id ?? null,
+        cadence: input.recurrence,
         active: true,
       })
       .select('*')
@@ -272,6 +352,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
         sop: input.sop ?? null,
         estimated_minutes: input.estimated_minutes ?? null,
         category_id: input.category_id ?? null,
+        horizon: input.recurrence === 'weekly' ? 'week' : input.recurrence === 'monthly' ? 'month' : 'day',
         routine_id: routine?.id ?? null,
         routine_on: todayKey(),
       })
@@ -295,6 +376,8 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       sop: input.sop ?? null,
       estimated_minutes: input.estimated_minutes ?? null,
       category_id: input.category_id ?? null,
+      horizon: input.horizon ?? 'day',
+      call_log_id: input.call_log_id ?? null,
     })
     .select('*')
     .single()

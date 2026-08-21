@@ -1,6 +1,6 @@
 'use client'
 
-import { BookOpen, CheckCircle2, ListChecks, Timer } from 'lucide-react'
+import { BookOpen, CheckCircle2, ListChecks, Mic, RotateCw, Target, Timer } from 'lucide-react'
 import { PersonAvatar } from '@/components/shared/person-avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -99,6 +99,31 @@ export function TaskCard({ task, showAssignee = true, compact = false, className
 
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         <RoutineBadge task={task} />
+        {task.horizon !== 'day' && (
+          <Badge variant="primary">
+            <Target className="h-3 w-3" />
+            {task.horizon === 'week' ? 'This week' : 'This month'}
+          </Badge>
+        )}
+        {task.rollover_count > 0 && task.status !== 'done' && (
+          <Badge
+            variant={task.rollover_count >= 3 ? 'danger' : 'warning'}
+            title={
+              task.original_due_date
+                ? `Originally due ${task.original_due_date}. Carried forward ${task.rollover_count} times.`
+                : undefined
+            }
+          >
+            <RotateCw className="h-3 w-3" />
+            Carried {task.rollover_count}×
+          </Badge>
+        )}
+        {task.call_log_id && (
+          <Badge variant="outline" title="Created from a promise made on a call">
+            <Mic className="h-3 w-3" />
+            From a call
+          </Badge>
+        )}
         {task.sop && (
           <Badge variant="outline" title="This job has a written procedure">
             <BookOpen className="h-3 w-3" />

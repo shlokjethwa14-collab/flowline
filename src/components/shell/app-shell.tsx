@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, type ReactNode } from 'react'
+import { CallRecorderDialog } from '@/components/calls/call-recorder-dialog'
 import { AddPersonDialog } from '@/components/team/add-person-dialog'
 import { AssignWorkDialog } from '@/components/tasks/assign-work-dialog'
 import { TaskDetailsSheet } from '@/components/tasks/task-details-sheet'
 import { useCurrentUser } from '@/hooks/use-flowline'
-import { useRealtimeSync, useRoutineGeneration } from '@/lib/data/queries'
+import { useDayRollForward, useRealtimeSync } from '@/lib/data/queries'
 import { useUIStore } from '@/store/ui'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
@@ -28,9 +29,13 @@ function useQuickAddShortcut(enabled: boolean) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { isAdmin } = useCurrentUser()
+  const callOpen = useUIStore((s) => s.callOpen)
+  const callTaskId = useUIStore((s) => s.callTaskId)
+  const callCounterparty = useUIStore((s) => s.callCounterparty)
+  const closeCall = useUIStore((s) => s.closeCall)
 
   useRealtimeSync()
-  useRoutineGeneration(isAdmin)
+  useDayRollForward(isAdmin)
   useQuickAddShortcut(isAdmin)
 
   return (
@@ -44,6 +49,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* One instance of each overlay, shared by every screen. */}
       <TaskDetailsSheet />
+      <CallRecorderDialog
+        open={callOpen}
+        onOpenChange={(next) => !next && closeCall()}
+        taskId={callTaskId}
+        defaultCounterparty={callCounterparty}
+      />
       {isAdmin && <AssignWorkDialog />}
       {isAdmin && <AddPersonDialog />}
     </div>

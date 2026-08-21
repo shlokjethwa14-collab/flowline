@@ -7,7 +7,15 @@
  *   npx supabase gen types typescript --project-id <ref> > src/lib/supabase/database.types.ts
  */
 
-import type { ChecklistItem, Role, TaskStatus, TaskType } from '@/lib/types'
+import type {
+  CallCommitment,
+  CallIntel,
+  ChecklistItem,
+  Horizon,
+  Role,
+  TaskStatus,
+  TaskType,
+} from '@/lib/types'
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
@@ -58,6 +66,10 @@ export interface Database {
           sop: string | null
           estimated_minutes: number | null
           category_id: string | null
+          horizon: Horizon
+          original_due_date: string | null
+          rollover_count: number
+          call_log_id: string | null
           routine_id: string | null
           routine_on: string | null
           created_at: string
@@ -78,6 +90,10 @@ export interface Database {
           sop?: string | null
           estimated_minutes?: number | null
           category_id?: string | null
+          horizon?: Horizon
+          original_due_date?: string | null
+          rollover_count?: number
+          call_log_id?: string | null
           routine_id?: string | null
           routine_on?: string | null
           created_at?: string
@@ -98,6 +114,10 @@ export interface Database {
           sop?: string | null
           estimated_minutes?: number | null
           category_id?: string | null
+          horizon?: Horizon
+          original_due_date?: string | null
+          rollover_count?: number
+          call_log_id?: string | null
           routine_id?: string | null
           routine_on?: string | null
           created_at?: string
@@ -167,6 +187,7 @@ export interface Database {
           sop: string | null
           estimated_minutes: number | null
           category_id: string | null
+          cadence: 'daily' | 'weekly' | 'monthly'
           active: boolean
           last_generated_on: string | null
           created_at: string
@@ -182,6 +203,7 @@ export interface Database {
           sop?: string | null
           estimated_minutes?: number | null
           category_id?: string | null
+          cadence?: 'daily' | 'weekly' | 'monthly'
           active?: boolean
           last_generated_on?: string | null
           created_at?: string
@@ -197,8 +219,48 @@ export interface Database {
           sop?: string | null
           estimated_minutes?: number | null
           category_id?: string | null
+          cadence?: 'daily' | 'weekly' | 'monthly'
           active?: boolean
           last_generated_on?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      call_logs: {
+        Row: {
+          id: string
+          task_id: string | null
+          counterparty: string
+          recorded_by: string | null
+          duration_seconds: number | null
+          transcript: string
+          summary: string
+          commitments: CallCommitment[]
+          intel: CallIntel[]
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          task_id?: string | null
+          counterparty: string
+          recorded_by?: string | null
+          duration_seconds?: number | null
+          transcript: string
+          summary?: string
+          commitments?: CallCommitment[]
+          intel?: CallIntel[]
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          task_id?: string | null
+          counterparty?: string
+          recorded_by?: string | null
+          duration_seconds?: number | null
+          transcript?: string
+          summary?: string
+          commitments?: CallCommitment[]
+          intel?: CallIntel[]
           created_at?: string
         }
         Relationships: []
@@ -255,6 +317,23 @@ export interface Database {
       generate_routine_tasks: {
         Args: { p_on?: string }
         Returns: number
+      }
+      roll_over_unfinished: {
+        Args: { p_on?: string }
+        Returns: number
+      }
+      log_call: {
+        Args: {
+          p_task_id?: string
+          p_counterparty: string
+          p_duration_seconds?: number
+          p_transcript: string
+          p_summary: string
+          p_commitments: CallCommitment[]
+          p_intel: CallIntel[]
+          p_assign_to?: string
+        }
+        Returns: Database['public']['Tables']['call_logs']['Row']
       }
       is_admin: {
         Args: Record<string, never>

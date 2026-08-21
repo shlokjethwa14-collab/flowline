@@ -1,6 +1,6 @@
 'use client'
 
-import { CalendarRange, CheckCircle2, ListChecks, PartyPopper, Sunrise } from 'lucide-react'
+import { CalendarRange, CheckCircle2, ListChecks, PartyPopper, Sunrise, Target } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo } from 'react'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -12,14 +12,55 @@ import { Progress } from '@/components/ui/progress'
 import { useCurrentUser, useVisibleTasks } from '@/hooks/use-flowline'
 import { MY_DAY_GROUPS } from '@/lib/task-meta'
 import type { Task } from '@/lib/types'
-import { checklistProgress, formatFriendlyDay, isOverdue, isSameDay, todayKey } from '@/lib/utils'
+import { checklistProgress, daysLeftInPeriod, formatFriendlyDay, isOverdue, isSameDay, todayKey } from '@/lib/utils'
 
 /** Today's work plus anything still unfinished from before. */
 function isOnMyDay(task: Task): boolean {
+  // Week and month commitments live in their own sections, not today's list.
+  if (task.horizon !== 'day') return false
   if (task.status === 'done') return isSameDay(task.completed_at ?? task.due_date, new Date())
   if (isOverdue(task)) return true
   if (!task.due_date) return isSameDay(task.created_at, new Date())
   return isSameDay(task.due_date, new Date())
+}
+
+/** Work committed to this week or this month, with the time left to do it. */
+function PeriodSection({ horizon, tasks }: { horizon: 'week' | 'month'; tasks: Task[] }) {
+  if (tasks.length === 0) return null
+  const done = tasks.filter((t) => t.status === 'done').length
+  const percent = Math.round((done / tasks.length) * 100)
+  const left = daysLeftInPeriod(horizon)
+  const label = horizon === 'week' ? 'This week' : 'This month'
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.011em] text-zinc-800">
+          <Target className="h-4 w-4 text-zinc-400" strokeWidth={1.9} />
+          {label}
+        </h2>
+        <Badge variant={percent === 100 ? 'success' : 'primary'}>
+          {done}/{tasks.length} done
+        </Badge>
+        <Badge variant={left <= 2 && percent < 100 ? 'danger' : 'outline'}>
+          {left} {left === 1 ? 'day' : 'days'} left
+        </Badge>
+        <div className="ml-auto hidden w-40 sm:block">
+          <Progress
+            value={percent}
+            complete={percent >= 100}
+            className="h-1.5"
+            aria-label={`${label}: ${done} of ${tasks.length} finished`}
+          />
+        </div>
+      </div>
+      <div className="grid gap-3 stagger md:grid-cols-2 xl:grid-cols-3">
+        {tasks.map((task) => (
+          <TaskCard key={task.id} task={task} showAssignee={false} />
+        ))}
+      </div>
+    </section>
+  )
 }
 
 export default function MyDayPage() {
@@ -34,6 +75,8 @@ export default function MyDayPage() {
   )
 
   const dayTasks = useMemo(() => mine.filter(isOnMyDay), [mine])
+  const weekTasks = useMemo(() => mine.filter((t) => t.horizon === 'week'), [mine])
+  const monthTasks = useMemo(() => mine.filter((t) => t.horizon === 'month'), [mine])
 
   const stats = useMemo(() => {
     const total = dayTasks.length
@@ -200,6 +243,14 @@ export default function MyDayPage() {
             )
           })}
         </div>
+      )}
+
+      {/* Commitments for the period, kept apart from today's list. */}
+      {!loading && (
+        <>
+          <PeriodSection horizon="week" tasks={weekTasks} />
+          <PeriodSection horizon="month" tasks={monthTasks} />
+        </>
       )}
 
       {/* What is coming — the forward look, so today is not the whole world. */}
