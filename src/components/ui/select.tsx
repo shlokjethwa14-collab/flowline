@@ -19,7 +19,7 @@ const SelectTrigger = React.forwardRef<
     className={cn(
       inputSurface,
       'group flex h-11 items-center justify-between gap-2 px-4 py-2 text-sm',
-      'data-[state=open]:bg-white data-[state=open]:shadow-[inset_0_1px_2px_hsl(225_30%_30%/0.05),inset_0_0_0_1px_hsl(var(--primary)/0.5),0_0_0_4px_hsl(var(--primary)/0.12)]',
+      'data-[state=open]:shadow-[inset_0_1px_2px_var(--g-well-sh),inset_0_0_0_1.5px_hsl(var(--ring)/0.7),0_0_0_4px_hsl(var(--ring)/0.1)]',
       '[&>span]:line-clamp-1 [&>span]:text-left data-[placeholder]:text-zinc-400',
       className,
     )}

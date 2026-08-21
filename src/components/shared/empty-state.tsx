@@ -28,7 +28,7 @@ export function EmptyState({ icon: Icon, title, description, action, className, 
           'animate-float',
           tone === 'success'
             ? 'bg-[linear-gradient(176deg,hsl(158_70%_64%),hsl(160_66%_48%))] text-white shadow-[0_6px_18px_-4px_hsl(160_66%_48%/0.5),0_0_28px_-6px_hsl(158_70%_58%/0.6),inset_0_1.5px_0_rgb(255_255_255/0.5),inset_0_0_0_1px_rgb(255_255_255/0.18)]'
-            : 'bg-[linear-gradient(176deg,rgb(255_255_255/0.98),rgb(244_246_251/0.8))] text-zinc-400 shadow-[0_0_0_0.5px_hsl(225_20%_62%/0.28),0_6px_18px_-6px_hsl(225_30%_20%/0.16),inset_0_1.5px_0_rgb(255_255_255/1),inset_0_0_0_1px_rgb(255_255_255/0.6),inset_0_-8px_14px_-12px_hsl(225_30%_40%/0.3)]',
+            : 'bg-[var(--glass-surface-raised)] text-zinc-500 shadow-[0_0_0_0.5px_var(--glass-border),0_6px_18px_-6px_var(--glass-shadow),inset_0_1px_0_var(--glass-highlight)]',
         )}
       >
         <Icon className="h-7 w-7" strokeWidth={1.6} />

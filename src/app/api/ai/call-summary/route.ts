@@ -13,6 +13,11 @@ const bodySchema = z.object({
   counterparty: z.string().trim().max(160).optional(),
   /** Today, in the caller's own timezone, so relative dates resolve correctly. */
   today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** IANA zone and weekday. Without these "Friday" is a guess: the model
+   *  cannot know which week the caller is in, and a UTC-based assumption
+   *  lands a day out for anyone east of Greenwich after early evening. */
+  timezone: z.string().trim().max(64).optional(),
+  weekday: z.string().trim().max(16).optional(),
 })
 
 const CallAnalysis = z.object({
@@ -93,7 +98,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'There is not enough of the call to work from yet.' }, { status: 422 })
   }
-  const { transcript, counterparty, today } = parsed.data
+  const { transcript, counterparty, today, timezone, weekday } = parsed.data
 
   // Anyone signed in may log their own calls; there is nothing admin-only here.
   if (hasSupabaseConfig()) {
@@ -122,7 +127,10 @@ export async function POST(request: NextRequest) {
         {
           role: 'user',
           content: [
-            `Today is ${today}.`,
+            `Today is ${weekday ? `${weekday}, ` : ''}${today}${timezone ? ` (timezone ${timezone})` : ''}.`,
+            'Resolve every relative date against that exact day, in that timezone.',
+            'A named weekday with no week attached means the NEXT such weekday after today.',
+            'A bare day-of-month means that day in the current month, or the next month if it has already passed.',
             counterparty ? `The call was with: ${counterparty}` : 'The other party was not named.',
             '',
             'Transcript:',

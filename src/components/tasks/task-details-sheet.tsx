@@ -274,7 +274,7 @@ function TaskSheetBody({ task, onClose }: { task: Task; onClose: () => void }) {
                     onClick={() => applyOutcome(option.value)}
                     className={cn(
                       'btn-3d flex items-start gap-2.5 rounded-xl px-3 py-2.5 text-left ring-1 ring-inset transition-all',
-                      'bg-white/70 text-zinc-600 ring-zinc-200/80 hover:bg-white',
+                      'bg-zinc-900/[.04] text-zinc-600 ring-zinc-900/[.08] hover:bg-zinc-900/[.07]',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       option.tone,
                       active && 'shadow-raised font-medium',

@@ -21,7 +21,7 @@ import type {
   TaskRoutine,
   TaskStatus,
 } from '@/lib/types'
-import { combineDayAndTime, todayKey } from '@/lib/utils'
+import { combineDayAndTime, localTimeZone, todayKey } from '@/lib/utils'
 
 /** Small pause in demo mode so skeletons and optimistic updates behave realistically. */
 function tick<T>(value: T, ms = 60): Promise<T> {
@@ -243,7 +243,13 @@ export async function analyseCall(transcript: string, counterparty: string): Pro
   const response = await fetch('/api/ai/call-summary', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ transcript, counterparty, today: todayKey() }),
+    body: JSON.stringify({
+      transcript,
+      counterparty,
+      today: todayKey(),
+      timezone: localTimeZone(),
+      weekday: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+    }),
   })
   const payload = (await response.json()) as Partial<CallAnalysis> & { error?: string }
   if (!response.ok) throw new Error(payload.error ?? 'The call could not be read.')

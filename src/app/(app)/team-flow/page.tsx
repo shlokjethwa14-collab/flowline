@@ -11,7 +11,7 @@ import { useUIStore } from '@/store/ui'
 
 function Hint({ icon: Icon, children }: { icon: typeof Users; children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-[12px] text-zinc-500 ring-1 ring-inset ring-zinc-200/70">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900/[.04] px-3 py-1.5 text-[12.5px] text-zinc-600 ring-1 ring-inset ring-zinc-900/[.08]">
       <Icon className="h-3.5 w-3.5 text-zinc-400" strokeWidth={1.9} />
       {children}
     </span>

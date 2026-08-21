@@ -95,17 +95,41 @@ export function timeAgo(value: string | Date): string {
 /* Task derivations                                                    */
 /* ------------------------------------------------------------------ */
 
-export function isOverdue(task: Pick<Task, 'due_date' | 'status'>): boolean {
-  if (!task.due_date || task.status === 'done') return false
-  return new Date(task.due_date).getTime() < Date.now()
+export type DueState = 'none' | 'overdue' | 'due-soon' | 'today' | 'upcoming'
+
+/**
+ * Classifies a deadline against the user's own clock and calendar day.
+ *
+ * Both halves matter. "Overdue" is an instant comparison — the moment has
+ * passed. "Today" is a calendar-day comparison, because a job due at 18:00
+ * is still today's problem at 09:00 and should not be filed alongside next
+ * week's. Comparing only instants collapses those two into one another,
+ * which is what made the badges misleading.
+ */
+export function dueState(task: Pick<Task, 'due_date' | 'status' | 'horizon'>): DueState {
+  if (!task.due_date || task.status === 'done') return 'none'
+  // Week and month commitments are not late until their period ends.
+  if (task.horizon && task.horizon !== 'day') return 'none'
+
+  const due = new Date(task.due_date)
+  const now = Date.now()
+  if (due.getTime() < now) return 'overdue'
+
+  const dueKey = toDayKey(due)
+  const today = todayKey()
+  if (dueKey === today) return 'today'
+  if (due.getTime() - now <= 24 * 60 * 60 * 1000) return 'due-soon'
+  return 'upcoming'
 }
 
-/** Due inside the next 24 hours (and not already past). */
-export function isDueSoon(task: Pick<Task, 'due_date' | 'status'>): boolean {
-  if (!task.due_date || task.status === 'done') return false
-  const due = new Date(task.due_date).getTime()
-  const now = Date.now()
-  return due >= now && due - now <= 24 * 60 * 60 * 1000
+export function isOverdue(task: Pick<Task, 'due_date' | 'status' | 'horizon'>): boolean {
+  return dueState(task) === 'overdue'
+}
+
+/** Later today, or inside the next 24 hours. */
+export function isDueSoon(task: Pick<Task, 'due_date' | 'status' | 'horizon'>): boolean {
+  const state = dueState(task)
+  return state === 'today' || state === 'due-soon'
 }
 
 export function checklistProgress(checklist: ChecklistItem[]): { done: number; total: number; percent: number } {
@@ -154,15 +178,38 @@ export function isWorkingDay(dayKey: string): boolean {
 /* Weeks and months                                                    */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Parses a YYYY-MM-DD key as a LOCAL date, anchored at midday.
+ *
+ * Two traps this avoids. `new Date('2026-08-28')` is parsed as UTC midnight
+ * per spec, so west of Greenwich it is already the 27th locally — that is
+ * exactly how "the 28th" becomes the wrong day. And anchoring at 00:00
+ * instead of 12:00 puts the value within an hour of a DST boundary, where
+ * adding days can land back on the same date. Midday is far from both.
+ */
+export function parseDayKey(dayKey: string): Date {
+  const [y, m, d] = dayKey.split('-').map((n) => Number.parseInt(n, 10))
+  return new Date(y, (m ?? 1) - 1, d ?? 1, 12, 0, 0, 0)
+}
+
 export function addDaysKey(dayKey: string, days: number): string {
-  const d = new Date(`${dayKey}T12:00:00`)
+  const d = parseDayKey(dayKey)
   d.setDate(d.getDate() + days)
   return toDayKey(d)
 }
 
+/** The user's own IANA zone, so relative dates resolve where they are. */
+export function localTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  } catch {
+    return 'UTC'
+  }
+}
+
 /** Monday-first, matching the calendar grid and how the week is worked. */
 export function startOfWeekKey(value: string | Date = new Date()): string {
-  const d = typeof value === 'string' ? new Date(`${value}T12:00:00`) : new Date(value)
+  const d = typeof value === 'string' ? parseDayKey(value) : new Date(value)
   const shift = (d.getDay() + 6) % 7
   d.setDate(d.getDate() - shift)
   return toDayKey(d)
@@ -173,12 +220,12 @@ export function endOfWeekKey(value: string | Date = new Date()): string {
 }
 
 export function startOfMonthKey(value: string | Date = new Date()): string {
-  const d = typeof value === 'string' ? new Date(`${value}T12:00:00`) : new Date(value)
+  const d = typeof value === 'string' ? parseDayKey(value) : new Date(value)
   return toDayKey(new Date(d.getFullYear(), d.getMonth(), 1))
 }
 
 export function endOfMonthKey(value: string | Date = new Date()): string {
-  const d = typeof value === 'string' ? new Date(`${value}T12:00:00`) : new Date(value)
+  const d = typeof value === 'string' ? parseDayKey(value) : new Date(value)
   return toDayKey(new Date(d.getFullYear(), d.getMonth() + 1, 0))
 }
 
@@ -188,10 +235,9 @@ export function isWithin(dayKey: string, fromKey: string, toKey: string): boolea
 
 /** Whole days left in the current week / month, counting today. */
 export function daysLeftInPeriod(horizon: 'week' | 'month'): number {
-  const today = todayKey()
   const end = horizon === 'week' ? endOfWeekKey() : endOfMonthKey()
-  const a = new Date(`${today}T12:00:00`).getTime()
-  const b = new Date(`${end}T12:00:00`).getTime()
+  const a = parseDayKey(todayKey()).getTime()
+  const b = parseDayKey(end).getTime()
   return Math.max(0, Math.round((b - a) / 86_400_000) + 1)
 }
 

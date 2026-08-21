@@ -4,6 +4,23 @@ import animate from 'tailwindcss-animate'
 const config: Config = {
   darkMode: ['class'],
   content: ['./src/**/*.{ts,tsx}'],
+  /**
+   * Custom work-type hues are chosen at runtime, so the class name only ever
+   * exists as `cat-${key}` in source. Tailwind tree-shakes what it cannot
+   * see, which silently stripped these and left every custom category with
+   * an invisible icon tile. They must be declared.
+   */
+  safelist: [
+    'cat-violet',
+    'cat-blue',
+    'cat-cyan',
+    'cat-teal',
+    'cat-green',
+    'cat-amber',
+    'cat-orange',
+    'cat-rose',
+    'cat-slate',
+  ],
   theme: {
     container: {
       center: true,

@@ -44,7 +44,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Topbar />
 
       <main className="px-3 pb-16 pt-5 sm:px-4 lg:px-6">
-        <div className="mx-auto w-full max-w-[1400px]">{children}</div>
+        {/* Wide enough for the report and the board to breathe on a large
+            display; the cap only stops line lengths running away past 2K. */}
+        <div className="mx-auto w-full max-w-[1680px]">{children}</div>
       </main>
 
       {/* One instance of each overlay, shared by every screen. */}

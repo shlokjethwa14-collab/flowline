@@ -27,7 +27,7 @@ export function ThemeToggle() {
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button variant="glass" size="icon-sm" aria-label={`Appearance: ${theme}`}>
+            <Button variant="glass" size="icon" aria-label={`Appearance: ${theme}`}>
               {/* Both icons live in the DOM and cross-fade, so the swap has
                   no layout step. */}
               <span className="relative flex h-4 w-4 items-center justify-center">

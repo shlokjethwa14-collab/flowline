@@ -1,6 +1,6 @@
 'use client'
 
-import { Maximize2, Minus, Plus } from 'lucide-react'
+import { Maximize2, Minus, Plus, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -33,9 +33,50 @@ function clamp(n: number, lo: number, hi: number): number {
  */
 export function ZoomPan({ children, className }: { children: ReactNode; className?: string }) {
   const viewportRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<View>(INITIAL)
   const [dragging, setDragging] = useState(false)
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
+
+  /**
+   * Scales the whole chart to fit and centres it. The measurement has to
+   * happen at scale 1, so it reads `scrollWidth`/`scrollHeight` of the stage
+   * rather than its transformed bounding box.
+   */
+  const fit = useCallback(() => {
+    const vp = viewportRef.current
+    const stage = stageRef.current
+    if (!vp || !stage) return
+    const pad = 32
+    const w = stage.scrollWidth
+    const h = stage.scrollHeight
+    if (!w || !h) return
+    const scale = clamp(Math.min((vp.clientWidth - pad) / w, (vp.clientHeight - pad) / h), MIN, 1)
+    setView({
+      scale,
+      x: (vp.clientWidth - w * scale) / 2,
+      y: (vp.clientHeight - h * scale) / 2,
+    })
+  }, [])
+
+  // Fit once the chart has actually rendered, and again if it changes size
+  // (someone added a teammate, or the window resized).
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    const id = window.requestAnimationFrame(fit)
+    if (typeof ResizeObserver === 'undefined') return () => window.cancelAnimationFrame(id)
+    // Every callback re-fits, including the first — that one is the real
+    // measurement once layout has settled, and the rAF above usually runs
+    // before the cards have their final size. `fit` only writes a transform,
+    // which cannot change the observed layout box, so this cannot loop.
+    const observer = new ResizeObserver(fit)
+    observer.observe(stage)
+    return () => {
+      window.cancelAnimationFrame(id)
+      observer.disconnect()
+    }
+  }, [fit])
 
   const zoomAt = useCallback((factor: number, clientX?: number, clientY?: number) => {
     const el = viewportRef.current
@@ -112,10 +153,11 @@ export function ZoomPan({ children, className }: { children: ReactNode; classNam
         )}
       >
         <div
-          className="origin-top-left will-change-transform"
+          ref={stageRef}
+          className="inline-block origin-top-left will-change-transform"
           style={{
             transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.scale})`,
-            // Snap while dragging or zooming; ease when resetting.
+            // Snap while dragging or zooming; ease when fitting or resetting.
             transition: dragging ? 'none' : 'transform .32s cubic-bezier(0.32,0.72,0,1)',
           }}
         >
@@ -161,21 +203,31 @@ export function ZoomPan({ children, className }: { children: ReactNode; classNam
 
         <Tooltip>
           <TooltipTrigger asChild>
+            <Button variant="glass" size="sm" onClick={fit} className="gap-1.5">
+              <Maximize2 className="!size-3.5" />
+              Fit to screen
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Scale the whole chart to fit</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon-sm"
               onClick={() => setView(INITIAL)}
               disabled={atDefault}
-              aria-label="Reset the view"
+              aria-label="Reset zoom to 100 percent"
             >
-              <Maximize2 />
+              <RotateCcw />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Reset view</TooltipContent>
+          <TooltipContent>Reset to 100%</TooltipContent>
         </Tooltip>
       </div>
 
-      <p className="pointer-events-none absolute bottom-4 left-4 text-[11.5px] text-zinc-400">
+      <p className="pointer-events-none absolute bottom-4 left-4 hidden text-[12px] text-zinc-500 sm:block">
         Scroll to zoom · drag to move
       </p>
     </div>

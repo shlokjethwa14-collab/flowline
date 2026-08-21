@@ -1,24 +1,29 @@
 'use client'
 
-import { LayoutGrid, List, SearchX, SlidersHorizontal, X } from 'lucide-react'
-import { useMemo } from 'react'
+import { LayoutGrid, List, Search, SearchX, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { KanbanBoard } from '@/components/tasks/kanban-board'
 import { TaskCard, TaskCardSkeleton } from '@/components/tasks/task-card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Segmented } from '@/components/ui/segmented'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCurrentUser, useVisibleTasks } from '@/hooks/use-flowline'
 import { useProfiles } from '@/lib/data/queries'
 import { TASK_STATUSES } from '@/lib/task-meta'
 import type { Task } from '@/lib/types'
-import { cn, isDueSoon, isOverdue } from '@/lib/utils'
-import { useUIStore } from '@/store/ui'
+import { cn, dueState, isDueSoon, isOverdue } from '@/lib/utils'
+import { useUIStore, type AllWorkView } from '@/store/ui'
 
 const ALL_EMPLOYEES = 'all'
+
+const VIEWS = [
+  { value: 'list' as const, label: 'List', icon: List },
+  { value: 'kanban' as const, label: 'Kanban', icon: LayoutGrid },
+]
 
 function matchesSearch(task: Task, query: string): boolean {
   if (!query) return true
@@ -30,38 +35,52 @@ function matchesSearch(task: Task, query: string): boolean {
   )
 }
 
-function ViewToggle() {
-  const view = useUIStore((s) => s.allWorkView)
-  const setView = useUIStore((s) => s.setAllWorkView)
+/**
+ * Statistics, not controls. These used to look like filter chips and do
+ * nothing when pressed; they are now plainly a read-out — no button
+ * affordance, no hover state, and marked up as a description list.
+ */
+function Summary({ tasks }: { tasks: Task[] }) {
+  const counts = useMemo(() => {
+    const byStatus = TASK_STATUSES.map((s) => ({
+      label: s.label,
+      dot: s.dot,
+      n: tasks.filter((t) => t.status === s.value).length,
+    }))
+    return {
+      byStatus,
+      overdue: tasks.filter(isOverdue).length,
+      dueSoon: tasks.filter(isDueSoon).length,
+      blocked: tasks.filter((t) => t.is_blocked).length,
+    }
+  }, [tasks])
 
   return (
-    <div className="inset-well inline-flex h-10 items-center gap-1 rounded-xl p-1" role="group" aria-label="View style">
-      {(
-        [
-          { value: 'list', label: 'List', icon: List },
-          { value: 'kanban', label: 'Kanban', icon: LayoutGrid },
-        ] as const
-      ).map((option) => {
-        const Icon = option.icon
-        const active = view === option.value
-        return (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={active}
-            onClick={() => setView(option.value)}
-            className={cn(
-              'btn-3d inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              active ? 'bg-white text-zinc-900 shadow-raised' : 'text-zinc-500 hover:text-zinc-800',
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" />
-            {option.label}
-          </button>
-        )
-      })}
-    </div>
+    <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 px-1 text-[13px]">
+      <div className="flex items-center gap-1.5">
+        <dt className="text-zinc-500">Showing</dt>
+        <dd className="font-semibold tabular-nums text-zinc-900">{tasks.length}</dd>
+      </div>
+      {counts.byStatus.map((s) => (
+        <div key={s.label} className="flex items-center gap-1.5">
+          <span className={cn('h-1.5 w-1.5 rounded-full', s.dot)} aria-hidden="true" />
+          <dt className="text-zinc-500">{s.label}</dt>
+          <dd className="font-medium tabular-nums text-zinc-700">{s.n}</dd>
+        </div>
+      ))}
+      {counts.overdue > 0 && (
+        <div className="flex items-center gap-1.5">
+          <dt className="text-[color:var(--danger)]">Overdue</dt>
+          <dd className="font-semibold tabular-nums text-[color:var(--danger)]">{counts.overdue}</dd>
+        </div>
+      )}
+      {counts.blocked > 0 && (
+        <div className="flex items-center gap-1.5">
+          <dt className="text-[color:var(--warning)]">Blocked</dt>
+          <dd className="font-semibold tabular-nums text-[color:var(--warning)]">{counts.blocked}</dd>
+        </div>
+      )}
+    </dl>
   )
 }
 
@@ -71,92 +90,119 @@ export default function AllWorkPage() {
   const { data: profiles } = useProfiles()
 
   const view = useUIStore((s) => s.allWorkView)
+  const setView = useUIStore((s) => s.setAllWorkView)
   const search = useUIStore((s) => s.search)
   const setSearch = useUIStore((s) => s.setSearch)
   const employeeFilter = useUIStore((s) => s.employeeFilter)
   const setEmployeeFilter = useUIStore((s) => s.setEmployeeFilter)
 
-  const filtered = useMemo(() => {
-    return tasks.filter((task) => {
-      if (!matchesSearch(task, search.trim())) return false
-      if (isAdmin && employeeFilter !== ALL_EMPLOYEES && task.assigned_to !== employeeFilter) return false
-      return true
-    })
-  }, [tasks, search, employeeFilter, isAdmin])
+  const searchRef = useRef<HTMLInputElement>(null)
+  const [narrow, setNarrow] = useState(false)
+
+  // Kanban on a phone means four stacked columns and a very long page, so
+  // List is the sensible default there. Only forced once, on first mount,
+  // so a deliberate switch to the board is respected.
+  const forced = useRef(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const apply = () => setNarrow(mq.matches)
+    apply()
+    if (mq.matches && !forced.current) {
+      forced.current = true
+      setView('list')
+    }
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [setView])
+
+  const filtered = useMemo(
+    () =>
+      tasks.filter((task) => {
+        if (!matchesSearch(task, search.trim())) return false
+        if (isAdmin && employeeFilter !== ALL_EMPLOYEES && task.assigned_to !== employeeFilter) return false
+        return true
+      }),
+    [tasks, search, employeeFilter, isAdmin],
+  )
 
   const listSorted = useMemo(() => {
     const rank: Record<string, number> = { todo: 0, in_progress: 1, review: 2, done: 3 }
+    const urgency: Record<string, number> = { overdue: 0, today: 1, 'due-soon': 2, upcoming: 3, none: 4 }
     return [...filtered].sort((a, b) => {
       if (a.is_blocked !== b.is_blocked) return a.is_blocked ? -1 : 1
-      const aOver = isOverdue(a)
-      const bOver = isOverdue(b)
-      if (aOver !== bOver) return aOver ? -1 : 1
-      if (rank[a.status] !== rank[b.status]) return rank[a.status] - rank[b.status]
-      const aDue = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY
-      const bDue = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY
-      return aDue - bDue
+      const ua = urgency[dueState(a)]
+      const ub = urgency[dueState(b)]
+      if (ua !== ub) return ua - ub
+      return rank[a.status] - rank[b.status]
     })
   }, [filtered])
-
-  const counts = useMemo(
-    () => ({
-      overdue: filtered.filter(isOverdue).length,
-      dueSoon: filtered.filter(isDueSoon).length,
-      blocked: filtered.filter((t) => t.is_blocked).length,
-      byStatus: Object.fromEntries(
-        TASK_STATUSES.map((s) => [s.value, filtered.filter((t) => t.status === s.value).length]),
-      ) as Record<Task['status'], number>,
-    }),
-    [filtered],
-  )
 
   const hasFilters = search.trim().length > 0 || (isAdmin && employeeFilter !== ALL_EMPLOYEES)
   const loading = isLoading || userLoading
 
+  function clearAll() {
+    setSearch('')
+    setEmployeeFilter(ALL_EMPLOYEES)
+    searchRef.current?.focus()
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="All Work"
         description={
           isAdmin
-            ? 'Every job in the company. Search it, filter by person, and drag work between stages on the board.'
-            : 'Everything assigned to you. Drag a card on the board to change its stage.'
+            ? 'Every job in the company. Search it, filter by person, and move work between stages.'
+            : 'Everything assigned to you.'
         }
-        action={<ViewToggle />}
+        action={
+          <Segmented
+            options={VIEWS}
+            value={view}
+            onChange={(v) => setView(v as AllWorkView)}
+            label="Choose how to view the work"
+          />
+        }
       />
 
-      {/* Filters */}
-      <section className="glass-panel flex flex-col gap-3 p-3.5 sm:flex-row sm:items-end">
-        <div className="flex-1 space-y-1.5">
-          <Label htmlFor="all-work-search">Search</Label>
-          <div className="relative">
-            <Input
-              id="all-work-search"
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, notes or checklist step…"
-              className="pr-9"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch('')}
-                aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-900/[.06] hover:text-zinc-700"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
+      {/* One search, not two. The top bar's field now only jumps here. */}
+      <section className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search
+            className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+            aria-hidden="true"
+          />
+          <Label htmlFor="work-search" className="sr-only">
+            Search work
+          </Label>
+          <Input
+            id="work-search"
+            ref={searchRef}
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, notes or checklist step…"
+            className="pl-11 pr-11 [&::-webkit-search-cancel-button]:appearance-none"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={clearAll}
+              aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-900/[.06] hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
-        {/* Employees never get a person filter — they only ever see their own work. */}
         {isAdmin && (
-          <div className="w-full space-y-1.5 sm:w-60">
-            <Label htmlFor="all-work-person">Person</Label>
+          <div className="sm:w-56">
+            <Label htmlFor="work-person" className="sr-only">
+              Filter by person
+            </Label>
             <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-              <SelectTrigger id="all-work-person">
+              <SelectTrigger id="work-person">
                 <SelectValue placeholder="Everyone" />
               </SelectTrigger>
               <SelectContent>
@@ -170,41 +216,12 @@ export default function AllWorkPage() {
             </Select>
           </div>
         )}
-
-        {hasFilters && (
-          <Button
-            variant="glass"
-            onClick={() => {
-              setSearch('')
-              setEmployeeFilter(ALL_EMPLOYEES)
-            }}
-            className="gap-1.5 sm:mb-0"
-          >
-            <SlidersHorizontal />
-            Clear
-          </Button>
-        )}
       </section>
 
-      {/* Counters */}
-      {!loading && filtered.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">{filtered.length} shown</Badge>
-          {TASK_STATUSES.map((status) => (
-            <Badge key={status.value} variant="default">
-              <span className={cn('h-1.5 w-1.5 rounded-full', status.dot)} aria-hidden="true" />
-              {status.label} {counts.byStatus[status.value]}
-            </Badge>
-          ))}
-          {counts.overdue > 0 && <Badge variant="danger">{counts.overdue} overdue</Badge>}
-          {counts.dueSoon > 0 && <Badge variant="warning">{counts.dueSoon} due soon</Badge>}
-          {counts.blocked > 0 && <Badge variant="danger">{counts.blocked} blocked</Badge>}
-        </div>
-      )}
+      {!loading && filtered.length > 0 && <Summary tasks={filtered} />}
 
-      {/* Body */}
       {view === 'kanban' ? (
-        <KanbanBoard tasks={filtered} isLoading={loading} showAssignee={isAdmin} />
+        <KanbanBoard tasks={filtered} isLoading={loading} showAssignee={isAdmin} narrow={narrow} />
       ) : loading ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -220,17 +237,11 @@ export default function AllWorkPage() {
               ? 'Try a shorter search, or clear the filters to see everything again.'
               : isAdmin
                 ? 'Assign the first job from the Assign Work tab and it will appear here.'
-                : 'Nothing has been assigned to you yet. It will show up the moment it is.'
+                : 'Nothing has been assigned to you yet.'
           }
           action={
             hasFilters ? (
-              <Button
-                variant="glass"
-                onClick={() => {
-                  setSearch('')
-                  setEmployeeFilter(ALL_EMPLOYEES)
-                }}
-              >
+              <Button variant="glass" onClick={clearAll}>
                 Clear filters
               </Button>
             ) : undefined

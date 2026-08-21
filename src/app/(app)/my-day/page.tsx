@@ -1,6 +1,6 @@
 'use client'
 
-import { CalendarRange, CheckCircle2, ListChecks, PartyPopper, Sunrise, Target } from 'lucide-react'
+import { CalendarRange, CheckCircle2, CircleAlert, ListChecks, PartyPopper, Sunrise, Target } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo } from 'react'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -138,14 +138,16 @@ export default function MyDayPage() {
         description={`${formatFriendlyDay(todayKey())} — ${isAdmin ? 'the work you are carrying yourself' : 'here is everything that needs you'}. Tap any job to open it.`}
       />
 
-      {/* Day progress */}
+      {/* Day progress. Four cards all reading 0 is noise, not information —
+          when there is nothing scheduled, say so once and point at what to
+          do instead. */}
       {loading ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <StatCardSkeleton key={i} />
           ))}
         </div>
-      ) : (
+      ) : stats.total === 0 ? null : (
         <div className="grid gap-3 stagger sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label="Day progress"
@@ -172,7 +174,7 @@ export default function MyDayPage() {
           <StatCard
             label="Blocked"
             value={stats.blocked}
-            icon={PartyPopper}
+            icon={CircleAlert}
             tone={stats.blocked > 0 ? 'danger' : 'neutral'}
             hint={stats.blocked > 0 ? 'Waiting on someone else' : 'Nothing is stuck'}
           />
@@ -194,9 +196,13 @@ export default function MyDayPage() {
       ) : stats.total === 0 ? (
         <EmptyState
           icon={Sunrise}
-          title="Nothing on your plate today"
-          description="No work is due today and nothing is left over. If something comes up, it will appear here straight away."
-          className="mt-4"
+          title="No work scheduled"
+          description={
+            weekTasks.length + monthTasks.length > 0
+              ? 'Nothing is due today. Your commitments for the week and month are below.'
+              : 'Nothing is due today and nothing is left over. Anything assigned to you will appear here straight away.'
+          }
+          className="mt-2"
         />
       ) : everythingDone ? (
         <EmptyState

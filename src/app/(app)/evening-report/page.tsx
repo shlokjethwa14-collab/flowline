@@ -204,14 +204,16 @@ function EveningReportContent() {
           className={cn(
             'glass-panel flex items-center gap-3 p-4',
             report.allCallsDone
-              ? 'bg-gradient-to-r from-emerald-50/80 to-white'
-              : 'bg-gradient-to-r from-amber-50/80 to-white',
+              ? 'ring-1 ring-inset ring-[color:var(--success)]/25'
+              : 'ring-1 ring-inset ring-[color:var(--warning)]/25',
           )}
         >
           <span
             className={cn(
               'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
-              report.allCallsDone ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600',
+              report.allCallsDone
+                ? 'bg-[color:var(--success)]/15 text-[color:var(--success)]'
+                : 'bg-[color:var(--warning)]/15 text-[color:var(--warning)]',
             )}
           >
             {report.allCallsDone ? <Phone className="h-5 w-5" /> : <PhoneOff className="h-5 w-5" />}
@@ -242,7 +244,7 @@ function EveningReportContent() {
           className="mt-4"
         />
       ) : (
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="grid gap-6 xl:grid-cols-2 2xl:grid-cols-3">
           {/* Calls */}
           <section className="space-y-3">
             <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-zinc-800">
@@ -304,7 +306,7 @@ function EveningReportContent() {
 
           {/* Recorded calls — the summary, the promises, and what was said
               about us. This is the section the owner actually reads. */}
-          <section className="space-y-3 xl:col-span-2">
+          <section className="space-y-3 xl:col-span-2 2xl:col-span-3">
             <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.011em] text-zinc-800">
               <Mic className="h-4 w-4 text-zinc-400" strokeWidth={1.9} />
               Calls recorded today
@@ -316,7 +318,7 @@ function EveningReportContent() {
                 description="Use “Log call” in the top bar during a call. Flowline writes the summary and schedules whatever was promised."
               />
             ) : (
-              <ul className="grid gap-3 xl:grid-cols-2">
+              <ul className="grid gap-3 xl:grid-cols-2 2xl:grid-cols-3">
                 {report.callLogs.map(({ call, recorder }) => (
                   <li key={call.id} className="glass-panel space-y-3 p-4">
                     <div className="flex flex-wrap items-center gap-2">

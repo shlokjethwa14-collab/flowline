@@ -30,7 +30,7 @@ const TabsTrigger = React.forwardRef<
       'hover:text-zinc-800 active:scale-[0.97]',
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
       'disabled:pointer-events-none disabled:opacity-50',
-      'data-[state=active]:bg-[linear-gradient(176deg,rgb(255_255_255/1),rgb(250_251_254/0.92))] data-[state=active]:text-zinc-900 data-[state=active]:shadow-raised',
+      'data-[state=active]:bg-[var(--glass-surface-selected)] data-[state=active]:text-zinc-900 data-[state=active]:shadow-raised',
       className,
     )}
     {...props}

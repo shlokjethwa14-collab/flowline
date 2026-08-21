@@ -18,7 +18,7 @@ export function Toaster(props: ToasterProps) {
           description: '!text-zinc-500 !text-[12.5px] !leading-relaxed',
           actionButton: '!bg-primary !text-white !rounded-lg !text-[12px]',
           cancelButton: '!bg-zinc-100 !text-zinc-600 !rounded-lg !text-[12px]',
-          closeButton: '!bg-white !border-zinc-200 !text-zinc-500 hover:!text-zinc-800',
+          closeButton: '!bg-[var(--glass-surface-raised)] !border-zinc-300 !text-zinc-600 hover:!text-zinc-900',
           success: '[&_[data-icon]]:!text-emerald-500',
           error: '[&_[data-icon]]:!text-red-500',
         },

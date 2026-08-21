@@ -6,7 +6,7 @@ import { useMemo } from 'react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { TASK_STATUSES } from '@/lib/task-meta'
 import type { Task, TaskStatus } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { cn, dueState } from '@/lib/utils'
 import { useUpdateTaskStatus } from '@/lib/data/queries'
 import { TaskCard, TaskCardSkeleton } from './task-card'
 
@@ -14,33 +14,28 @@ interface KanbanBoardProps {
   tasks: Task[]
   isLoading: boolean
   showAssignee?: boolean
+  /** Phone layout: columns snap horizontally instead of stacking. */
+  narrow?: boolean
 }
 
-export function KanbanBoard({ tasks, isLoading, showAssignee = true }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, isLoading, showAssignee = true, narrow = false }: KanbanBoardProps) {
   const updateStatus = useUpdateTaskStatus()
 
   const columns = useMemo(() => {
     const byStatus = new Map<TaskStatus, Task[]>(TASK_STATUSES.map((s) => [s.value, []]))
+    const urgency: Record<string, number> = { overdue: 0, today: 1, 'due-soon': 2, upcoming: 3, none: 4 }
     const sorted = [...tasks].sort((a, b) => {
-      // Blocked first, then soonest deadline, then newest.
       if (a.is_blocked !== b.is_blocked) return a.is_blocked ? -1 : 1
-      const aDue = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY
-      const bDue = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY
-      if (aDue !== bDue) return aDue - bDue
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      return urgency[dueState(a)] - urgency[dueState(b)]
     })
-    for (const task of sorted) {
-      byStatus.get(task.status)?.push(task)
-    }
+    for (const task of sorted) byStatus.get(task.status)?.push(task)
     return byStatus
   }, [tasks])
 
   function onDragEnd(result: DropResult) {
     const { destination, source, draggableId } = result
-    if (!destination) return
-    if (destination.droppableId === source.droppableId) return
-    const nextStatus = destination.droppableId as TaskStatus
-    updateStatus.mutate({ taskId: draggableId, status: nextStatus })
+    if (!destination || destination.droppableId === source.droppableId) return
+    updateStatus.mutate({ taskId: draggableId, status: destination.droppableId as TaskStatus })
   }
 
   if (isLoading) {
@@ -48,10 +43,7 @@ export function KanbanBoard({ tasks, isLoading, showAssignee = true }: KanbanBoa
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {TASK_STATUSES.map((status) => (
           <div key={status.value} className="space-y-3">
-            <div className="glass-panel px-3.5 py-2.5">
-              <div className="skeleton h-4 w-20" />
-            </div>
-            <TaskCardSkeleton />
+            <div className="skeleton h-11 w-full rounded-2xl" />
             <TaskCardSkeleton />
           </div>
         ))}
@@ -64,41 +56,45 @@ export function KanbanBoard({ tasks, isLoading, showAssignee = true }: KanbanBoa
       <EmptyState
         icon={Inbox}
         title="Nothing on the board"
-        description="Once work is assigned it will appear here, and you can drag it between the four stages."
+        description="Once work is assigned it appears here, and you can move it between the four stages."
       />
     )
   }
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div
+        className={cn(
+          // The board scrolls inside itself, never the document. On a phone
+          // each column is a snap target, so four stages stay four screens
+          // wide instead of one very long page.
+          narrow
+            ? 'flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+            : 'grid gap-3 sm:grid-cols-2 xl:grid-cols-4',
+        )}
+      >
         {TASK_STATUSES.map((status) => {
           const items = columns.get(status.value) ?? []
           return (
             <Droppable droppableId={status.value} key={status.value}>
               {(provided, snapshot) => (
                 <section
-                  aria-label={`${status.label} column`}
+                  aria-label={`${status.label}, ${items.length} ${items.length === 1 ? 'job' : 'jobs'}`}
                   className={cn(
-                    'flex flex-col rounded-2xl transition-colors duration-200',
-                    snapshot.isDraggingOver && 'bg-primary/[.05] ring-1 ring-primary/15',
+                    'flex flex-col rounded-3xl transition-colors duration-200',
+                    narrow && 'w-[82vw] shrink-0 snap-start',
+                    snapshot.isDraggingOver && 'bg-zinc-900/[.04] ring-1 ring-zinc-900/10',
                   )}
                 >
-                  <header
-                    className={cn(
-                      'glass glass-edge sticky top-[74px] z-10 mb-3 flex items-center gap-2 rounded-xl px-3.5 py-2.5',
-                      'bg-gradient-to-b',
-                      status.column,
-                    )}
-                  >
+                  <header className="glass glass-thin sticky top-[72px] z-10 mb-3 flex items-center gap-2 rounded-2xl px-4 py-3">
                     <span className={cn('h-2 w-2 rounded-full', status.dot)} aria-hidden="true" />
-                    <h3 className="text-[13px] font-semibold text-zinc-800">{status.label}</h3>
-                    <span className="ml-auto rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-zinc-500 shadow-glass-sm">
+                    <h3 className="text-[13.5px] font-semibold text-zinc-800">{status.label}</h3>
+                    <span className="ml-auto rounded-full bg-zinc-900/[.06] px-2 py-0.5 text-[12px] font-semibold tabular-nums text-zinc-600">
                       {items.length}
                     </span>
                   </header>
 
-                  <div ref={provided.innerRef} {...provided.droppableProps} className="flex min-h-[120px] flex-col gap-3 pb-2">
+                  <div ref={provided.innerRef} {...provided.droppableProps} className="flex min-h-[110px] flex-col gap-3 pb-2">
                     {items.map((task, index) => (
                       <Draggable draggableId={task.id} index={index} key={task.id}>
                         {(dragProvided, dragSnapshot) => (
@@ -108,11 +104,11 @@ export function KanbanBoard({ tasks, isLoading, showAssignee = true }: KanbanBoa
                             {...dragProvided.dragHandleProps}
                             style={dragProvided.draggableProps.style}
                             className={cn(
-                              'transition-shadow',
-                              dragSnapshot.isDragging && '[&>*]:shadow-glass-lg [&>*]:ring-1 [&>*]:ring-primary/20',
+                              'transition-transform duration-200 ease-apple',
+                              dragSnapshot.isDragging && 'scale-[1.02] [&>*]:shadow-glass-lg',
                             )}
                           >
-                            <TaskCard task={task} showAssignee={showAssignee} compact />
+                            <TaskCard task={task} showAssignee={showAssignee} compact showStagePicker />
                           </div>
                         )}
                       </Draggable>
@@ -120,7 +116,7 @@ export function KanbanBoard({ tasks, isLoading, showAssignee = true }: KanbanBoa
                     {provided.placeholder}
 
                     {items.length === 0 && !snapshot.isDraggingOver && (
-                      <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-6 text-center text-[12px] text-zinc-400">
+                      <p className="rounded-2xl border border-dashed border-zinc-300/70 px-3 py-6 text-center text-[12.5px] text-zinc-400">
                         Nothing here
                       </p>
                     )}
@@ -131,6 +127,10 @@ export function KanbanBoard({ tasks, isLoading, showAssignee = true }: KanbanBoa
           )
         })}
       </div>
+
+      {narrow && (
+        <p className="mt-1 px-1 text-[12px] text-zinc-500">Swipe sideways to see the other stages.</p>
+      )}
     </DragDropContext>
   )
 }

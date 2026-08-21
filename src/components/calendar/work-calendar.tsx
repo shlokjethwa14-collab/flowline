@@ -160,37 +160,54 @@ export function WorkCalendar({ tasks, isLoading = false, caption, className }: W
                 aria-label={`${cell.date.toLocaleDateString(undefined, { dateStyle: 'full' })}, ${count} ${count === 1 ? 'job' : 'jobs'}`}
                 aria-pressed={isSelected}
                 className={cn(
-                  'btn-3d group relative flex aspect-square min-h-[46px] flex-col items-center justify-start gap-1 rounded-xl p-1.5',
-                  'transition-[background-color,box-shadow,color] duration-base ease-apple-snap',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
-                  !cell.inMonth && 'opacity-40',
-                  isSelected
-                    ? 'bg-[linear-gradient(176deg,hsl(250_92%_70%),hsl(250_84%_58%))] text-white shadow-[0_4px_14px_-3px_hsl(250_84%_58%/0.55),0_0_22px_-6px_hsl(250_88%_66%/0.6),inset_0_1px_0_rgb(255_255_255/0.42)]'
-                    : 'text-zinc-700 hover:bg-zinc-900/[.05]',
-                  !isSelected && cell.isToday && 'shadow-[inset_0_0_0_1.5px_hsl(var(--primary)/0.55)]',
+                  'group relative flex aspect-square min-h-[44px] flex-col items-center justify-center gap-1 rounded-2xl p-1',
+                  'transition-colors duration-200 ease-apple-snap',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
+                  !cell.inMonth && 'opacity-45',
+                  !isSelected && 'hover:bg-zinc-900/[.05]',
                 )}
               >
-                <span className={cn('text-[12.5px] font-medium tabular-nums', cell.isToday && !isSelected && 'text-primary')}>
-                  {cell.date.getDate()}
+                {/* A compact luminous disc, not a filled cell. It sits behind
+                    the numeral so the grid keeps its rhythm whichever day is
+                    chosen. */}
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'grid h-8 w-8 place-items-center rounded-full',
+                    'transition-[background-color,box-shadow,transform] duration-220 ease-apple-pop',
+                    isSelected
+                      ? 'scale-100 bg-[color:var(--accent)] shadow-[0_2px_10px_-2px_var(--glass-shadow),inset_0_1px_0_rgb(255_255_255/0.2)]'
+                      : cell.isToday
+                        ? 'bg-transparent shadow-[inset_0_0_0_1.5px_var(--accent)]'
+                        : 'bg-transparent',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'text-[13px] tabular-nums',
+                      isSelected
+                        ? 'font-semibold text-[color:var(--text-on-accent)]'
+                        : cell.isToday
+                          ? 'font-semibold text-zinc-900'
+                          : 'font-medium text-zinc-700',
+                    )}
+                  >
+                    {cell.date.getDate()}
+                  </span>
                 </span>
-                {count > 0 && (
-                  <span className="flex items-center gap-0.5">
-                    {dots.map((t) => (
+
+                {/* Work indicator sits under the disc so it never competes
+                    with the numeral for space. */}
+                <span className="flex h-1.5 items-center gap-0.5">
+                  {count > 0 &&
+                    dots.map((t) => (
                       <span
                         key={t.id}
-                        className={cn(
-                          'h-1.5 w-1.5 rounded-full',
-                          isSelected ? 'bg-white/85' : resolveTaskMeta(t, categories ?? []).dot,
-                        )}
+                        className={cn('h-1.5 w-1.5 rounded-full', resolveTaskMeta(t, categories ?? []).dot)}
                       />
                     ))}
-                    {count > 4 && (
-                      <span className={cn('text-[9px] font-semibold', isSelected ? 'text-white/85' : 'text-zinc-400')}>
-                        +{count - 4}
-                      </span>
-                    )}
-                  </span>
-                )}
+                  {count > 4 && <span className="text-[9px] font-semibold text-zinc-500">+{count - 4}</span>}
+                </span>
               </button>
             )
           })}

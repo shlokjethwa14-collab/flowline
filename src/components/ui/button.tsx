@@ -74,13 +74,16 @@ const buttonVariants = cva(
 
         link: 'text-zinc-900 underline-offset-4 hover:underline',
       },
+      /* Touch targets are 44px on coarse pointers, which is the whole
+         reason for the `max-md:` bumps — a 32px control is fine under a
+         mouse and unusable under a thumb. */
       size: {
-        default: 'h-10 px-5 py-2',
-        sm: 'h-8 px-3.5 text-[13px]',
+        default: 'h-11 px-5 py-2',
+        sm: 'h-9 px-4 text-[13px] max-md:h-11',
         lg: 'h-12 px-7 text-[15px]',
         pill: 'h-11 px-6',
-        icon: 'h-10 w-10',
-        'icon-sm': 'h-8 w-8',
+        icon: 'h-11 w-11',
+        'icon-sm': 'h-9 w-9 max-md:h-11 max-md:w-11',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

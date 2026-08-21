@@ -1,6 +1,18 @@
 'use client'
 
-import { LogOut, Menu, Mic, Plus, RotateCcw, Search, ShieldCheck, User, UserCog } from 'lucide-react'
+import {
+  LogOut,
+  Menu,
+  Mic,
+  MoreHorizontal,
+  Plus,
+  RotateCcw,
+  Search,
+  ShieldCheck,
+  User,
+  UserCog,
+  X,
+} from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -20,20 +32,25 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCurrentUser } from '@/hooks/use-flowline'
 import { resetDemo, toggleDemoRole } from '@/lib/demo/store'
-import { cn } from '@/lib/utils'
 import { useUIStore } from '@/store/ui'
 import { ThemeToggle } from './theme-toggle'
 
+/** Desktop: a real field. Mobile: an icon that opens a full-width surface. */
 function GlobalSearch() {
   const router = useRouter()
   const pathname = usePathname()
   const search = useUIStore((s) => s.search)
   const setSearch = useUIStore((s) => s.setSearch)
+  const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const mobileRef = useRef<HTMLInputElement>(null)
 
-  // "/" focuses search, the way every tool the team already uses behaves.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape' && open) {
+        setOpen(false)
+        return
+      }
       if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return
       const target = event.target as HTMLElement | null
       const tag = target?.tagName
@@ -43,88 +60,87 @@ function GlobalSearch() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [open])
+
+  useEffect(() => {
+    if (open) mobileRef.current?.focus()
+  }, [open])
+
+  function commit(value: string) {
+    setSearch(value)
+    if (value.trim() && pathname !== '/all-work') router.push('/all-work')
+  }
 
   return (
-    <div className="relative w-full max-w-md">
-      <Search
-        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
-        aria-hidden="true"
-      />
-      <Input
-        ref={inputRef}
-        type="search"
-        value={search}
-        onChange={(e) => {
-          setSearch(e.target.value)
-          // Jump to the results only once the person actually types. Doing
-          // this on focus also fired when a closing dialog restored focus
-          // here, which yanked people to All Work out of nowhere.
-          if (e.target.value.trim() && pathname !== '/all-work') router.push('/all-work')
-        }}
-        placeholder="Search work…"
-        aria-label="Search all work"
-        className="h-9 pl-9 pr-10 text-[13.5px]"
-      />
-      {!search && (
-        <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-zinc-200 bg-white/80 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-400 sm:block">
-          /
-        </kbd>
+    <>
+      {/* Desktop */}
+      <div className="relative hidden w-full max-w-sm md:block">
+        <Search
+          className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+          aria-hidden="true"
+        />
+        <Input
+          ref={inputRef}
+          type="search"
+          value={search}
+          onChange={(e) => commit(e.target.value)}
+          placeholder="Search work…"
+          aria-label="Search all work"
+          className="h-10 pl-10 pr-10 text-[13.5px]"
+        />
+        {!search && (
+          <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-zinc-300 bg-zinc-50 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-500 lg:block">
+            /
+          </kbd>
+        )}
+      </div>
+
+      {/* Mobile trigger */}
+      <Button
+        variant="glass"
+        size="icon"
+        className="md:hidden"
+        onClick={() => setOpen(true)}
+        aria-label="Search work"
+      >
+        <Search />
+      </Button>
+
+      {/* Mobile full-width surface */}
+      {open && (
+        <div className="fixed inset-x-0 top-0 z-50 p-3 md:hidden">
+          <div className="glass glass-thick flex items-center gap-2 rounded-2xl p-2 animate-lift-in">
+            <Search className="ml-2 h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
+            <Input
+              ref={mobileRef}
+              type="search"
+              value={search}
+              onChange={(e) => commit(e.target.value)}
+              placeholder="Search work…"
+              aria-label="Search all work"
+              className="h-11 flex-1 border-0 bg-transparent px-0 shadow-none focus-visible:shadow-none"
+            />
+            <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close search">
+              <X />
+            </Button>
+          </div>
+        </div>
       )}
-    </div>
-  )
-}
-
-function DemoRoleSwitch() {
-  const { profile } = useCurrentUser()
-  const [busy, setBusy] = useState(false)
-  const isAdmin = profile?.role === 'admin'
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="glass"
-          size="sm"
-          disabled={busy}
-          onClick={() => {
-            setBusy(true)
-            toggleDemoRole()
-            toast.success(isAdmin ? 'Viewing as an employee.' : 'Viewing as the owner.', {
-              description: isAdmin
-                ? 'Admin navigation and controls are now hidden.'
-                : 'You can see the whole company again.',
-            })
-            setTimeout(() => setBusy(false), 250)
-          }}
-          className="gap-2"
-        >
-          {isAdmin ? <ShieldCheck className="text-primary" /> : <User className="text-zinc-500" />}
-          <span className="hidden text-[12.5px] sm:inline">{isAdmin ? 'Owner view' : 'Employee view'}</span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>Switch the preview between owner and employee</TooltipContent>
-    </Tooltip>
+    </>
   )
 }
 
 function AccountMenu() {
   const { profile, email, isAdmin, isDemo, isLoading } = useCurrentUser()
 
-  if (isLoading || !profile) {
-    return <Skeleton className="h-9 w-9 rounded-full" />
-  }
+  if (isLoading || !profile) return <Skeleton className="h-10 w-10 rounded-full" />
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className={cn(
-            'btn-3d flex items-center gap-2 rounded-full p-0.5 pr-1 transition-colors',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-            'hover:bg-zinc-900/[.05]',
-          )}
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full transition-colors hover:bg-zinc-900/[.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           aria-label={`Account menu for ${profile.full_name}`}
         >
           <PersonAvatar profile={profile} className="h-9 w-9" ring />
@@ -135,11 +151,11 @@ function AccountMenu() {
           <PersonAvatar profile={profile} className="h-10 w-10" />
           <div className="min-w-0">
             <p className="truncate text-[13.5px] font-semibold text-zinc-900">{profile.full_name}</p>
-            <p className="truncate text-[11.5px] text-zinc-500">{profile.job_title ?? 'Team member'}</p>
+            <p className="truncate text-[12px] text-zinc-600">{profile.job_title ?? 'Team member'}</p>
           </div>
         </div>
         {email && (
-          <p className="truncate px-2.5 pb-2 text-[11.5px] text-zinc-400" title={email}>
+          <p className="truncate px-2.5 pb-2 text-[12px] text-zinc-500" title={email}>
             {email}
           </p>
         )}
@@ -167,7 +183,7 @@ function AccountMenu() {
               destructive
               onSelect={() => {
                 resetDemo()
-                toast.success('Demo reset.', { description: 'The sample company is back to its starting state.' })
+                toast.success('Demo reset.')
               }}
             >
               <RotateCcw />
@@ -187,21 +203,54 @@ function AccountMenu() {
   )
 }
 
-export function Topbar() {
-  const setNavOpen = useUIStore((s) => s.setNavOpen)
-  const setQuickAdd = useUIStore((s) => s.setQuickAdd)
+/** Everything that does not earn a permanent slot on a phone. */
+function OverflowMenu() {
   const openCall = useUIStore((s) => s.openCall)
   const { isAdmin, isDemo } = useCurrentUser()
 
   return (
-    <header className="sticky top-0 z-20 px-3 pt-3 lg:px-6">
-      <div className="glass glass-thick flex h-14 items-center gap-2 rounded-2xl px-2.5 sm:gap-3 sm:px-3.5">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="glass" size="icon" className="lg:hidden" aria-label="More actions">
+          <MoreHorizontal />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem onSelect={() => openCall(null)}>
+          <Mic />
+          Log a call
+        </DropdownMenuItem>
+        {isDemo && (
+          <DropdownMenuItem
+            onSelect={() => {
+              toggleDemoRole()
+              toast.success(isAdmin ? 'Viewing as an employee.' : 'Viewing as the owner.')
+            }}
+          >
+            {isAdmin ? <User /> : <ShieldCheck />}
+            {isAdmin ? 'Preview as employee' : 'Preview as owner'}
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+export function Topbar() {
+  const setNavOpen = useUIStore((s) => s.setNavOpen)
+  const openAssign = useUIStore((s) => s.openAssign)
+  const openCall = useUIStore((s) => s.openCall)
+  const { isAdmin, isDemo, profile } = useCurrentUser()
+
+  return (
+    <header className="sticky top-0 z-30 px-3 pt-3 lg:px-6">
+      <div className="glass glass-thick flex h-16 items-center gap-2 rounded-3xl px-2.5 sm:px-3.5">
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           className="lg:hidden"
           onClick={() => setNavOpen(true)}
-          aria-label="Open navigation"
+          aria-label="Open navigation menu"
         >
           <Menu />
         </Button>
@@ -209,25 +258,53 @@ export function Topbar() {
         <GlobalSearch />
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Anyone can log a call — that is the point of logging calls. */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="glass" size="sm" onClick={() => openCall(null)} className="gap-1.5">
-                <Mic className="text-red-500" />
-                <span className="hidden text-[12.5px] sm:inline">Log call</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Record a call and schedule what was promised</TooltipContent>
-          </Tooltip>
+          {/* Desktop keeps the full set; mobile keeps only the primary
+              action and folds the rest into the overflow menu. */}
+          <div className="hidden items-center gap-2 lg:flex">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="glass" size="sm" onClick={() => openCall(null)} className="gap-1.5">
+                  <Mic className="text-[color:var(--danger)]" />
+                  Log call
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Record a call and schedule what was promised</TooltipContent>
+            </Tooltip>
+
+            {isDemo && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="glass"
+                    size="sm"
+                    onClick={() => {
+                      toggleDemoRole()
+                      toast.success(isAdmin ? 'Viewing as an employee.' : 'Viewing as the owner.')
+                    }}
+                    className="gap-2"
+                    aria-label={`Switch preview role. Currently ${isAdmin ? 'owner' : 'employee'}.`}
+                  >
+                    {isAdmin ? <ShieldCheck /> : <User />}
+                    <span className="text-[12.5px]">{isAdmin ? 'Owner view' : 'Employee view'}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Switch between owner and employee</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
 
           <ThemeToggle />
-          {isDemo && <DemoRoleSwitch />}
+          <OverflowMenu />
 
-          {/* Quick Add creates work, so only an admin ever sees it. */}
           {isAdmin && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="sm" onClick={() => setQuickAdd(true)} className="gap-1.5">
+                <Button
+                  size="sm"
+                  onClick={() => openAssign(null)}
+                  className="gap-1.5"
+                  aria-label="Quick add — create work"
+                >
                   <Plus />
                   <span className="hidden sm:inline">Quick Add</span>
                 </Button>
@@ -241,6 +318,7 @@ export function Topbar() {
           <AccountMenu />
         </div>
       </div>
+      {profile && <span className="sr-only">Signed in as {profile.full_name}</span>}
     </header>
   )
 }

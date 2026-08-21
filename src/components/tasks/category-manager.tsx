@@ -245,7 +245,7 @@ export function CategoryManagerDialog({ open, onOpenChange }: Props) {
                         'btn-3d flex h-9 w-9 items-center justify-center rounded-xl ring-1 ring-inset transition-all',
                         active
                           ? 'bg-primary/10 text-primary ring-primary/30 shadow-raised'
-                          : 'bg-white/70 text-zinc-500 ring-zinc-200/80 hover:bg-white dark:bg-zinc-100/60',
+                          : 'bg-zinc-900/[.04] text-zinc-600 ring-zinc-900/[.08] hover:bg-zinc-900/[.07]',
                       )}
                     >
                       <Icon className="h-4 w-4" strokeWidth={2} />

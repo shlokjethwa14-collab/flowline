@@ -53,8 +53,8 @@ function NavList({ role, onNavigate }: { role: Role; onNavigate?: () => void }) 
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               'active:scale-[0.985]',
               active
-                ? 'bg-[linear-gradient(176deg,rgb(255_255_255/1),rgb(250_251_254/0.86))] text-zinc-900 shadow-raised'
-                : 'text-zinc-500 hover:bg-white/65 hover:text-zinc-800',
+                ? 'bg-[var(--glass-surface-selected)] text-zinc-900 shadow-raised'
+                : 'text-zinc-600 hover:bg-zinc-900/[.05] hover:text-zinc-900',
             )}
           >
             {active && (

@@ -260,7 +260,7 @@ export function AssignWorkDialog() {
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       active
                         ? cn(option.chip, 'shadow-raised font-medium')
-                        : 'bg-white/70 text-zinc-600 ring-zinc-200/80 hover:bg-white dark:bg-zinc-100/60',
+                        : 'bg-zinc-900/[.04] text-zinc-600 ring-zinc-900/[.08] hover:bg-zinc-900/[.07]',
                     )}
                   >
                     <Icon className="h-4 w-4" strokeWidth={2} />
@@ -290,7 +290,7 @@ export function AssignWorkDialog() {
                           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                           active
                             ? cn(styles.chip, 'shadow-raised font-medium')
-                            : 'bg-white/70 text-zinc-600 ring-zinc-200/80 hover:bg-white dark:bg-zinc-100/60',
+                            : 'bg-zinc-900/[.04] text-zinc-600 ring-zinc-900/[.08] hover:bg-zinc-900/[.07]',
                         )}
                       >
                         <Icon className="h-4 w-4" strokeWidth={2} />
@@ -363,7 +363,7 @@ export function AssignWorkDialog() {
                         'btn-3d flex items-center gap-2 rounded-xl px-3 py-2.5 text-[12.5px] ring-1 ring-inset transition-all',
                         active
                           ? 'bg-primary/10 font-medium text-primary shadow-raised ring-primary/25'
-                          : 'bg-white/70 text-zinc-600 ring-zinc-200/80 hover:bg-white',
+                          : 'bg-zinc-900/[.04] text-zinc-600 ring-zinc-900/[.08] hover:bg-zinc-900/[.07]',
                       )}
                     >
                       <Icon className="h-4 w-4" strokeWidth={2} />
@@ -431,7 +431,7 @@ export function AssignWorkDialog() {
                         'btn-3d flex flex-col items-start gap-0.5 rounded-xl px-3 py-2.5 text-left ring-1 ring-inset transition-all',
                         active
                           ? 'bg-primary/10 font-medium text-primary shadow-raised ring-primary/25'
-                          : 'bg-white/70 text-zinc-600 ring-zinc-200/80 hover:bg-white dark:bg-zinc-100/60',
+                          : 'bg-zinc-900/[.04] text-zinc-600 ring-zinc-900/[.08] hover:bg-zinc-900/[.07]',
                       )}
                     >
                       <span className="text-[12.5px] leading-tight">{option.label}</span>
