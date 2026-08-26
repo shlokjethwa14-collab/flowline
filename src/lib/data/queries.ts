@@ -9,7 +9,6 @@ import { IS_DEMO } from '@/lib/supabase/env'
 import type {
   ActivityLog,
   AddEmployeeInput,
-  ChecklistItem,
   CreateTaskInput,
   CallLog,
   Profile,
@@ -250,8 +249,8 @@ interface TaskRollback {
 
 export function useUpdateTaskStatus() {
   const client = useQueryClient()
-  return useMutation<Task, Error, { taskId: string; status: TaskStatus }, TaskRollback>({
-    mutationFn: ({ taskId, status }) => api.updateTaskStatus(taskId, status),
+  return useMutation<Task, Error, { taskId: string; status: TaskStatus; source?: api.ChangeSource }, TaskRollback>({
+    mutationFn: ({ taskId, status, source }) => api.updateTaskStatus(taskId, status, source),
     onMutate: async ({ taskId, status }) => {
       await client.cancelQueries({ queryKey: qk.tasks })
       const now = new Date().toISOString()
@@ -275,11 +274,14 @@ export function useUpdateTaskStatus() {
 
 export function useSetTaskBlocked() {
   const client = useQueryClient()
-  return useMutation<Task, Error, { taskId: string; blocked: boolean }, TaskRollback>({
-    mutationFn: ({ taskId, blocked }) => api.setTaskBlocked(taskId, blocked),
-    onMutate: async ({ taskId, blocked }) => {
+  return useMutation<Task, Error, { taskId: string; blocked: boolean; reason?: string | null }, TaskRollback>({
+    mutationFn: ({ taskId, blocked, reason }) => api.setTaskBlocked(taskId, blocked, reason ?? null),
+    onMutate: async ({ taskId, blocked, reason }) => {
       await client.cancelQueries({ queryKey: qk.tasks })
-      const previous = patchTask(client, taskId, { is_blocked: blocked })
+      const previous = patchTask(client, taskId, {
+        is_blocked: blocked,
+        blocked_reason: blocked ? (reason ?? null) : null,
+      })
       return { previous }
     },
     onError: (error, _vars, context) => {
@@ -292,13 +294,21 @@ export function useSetTaskBlocked() {
   })
 }
 
-export function useSetChecklist() {
+/**
+ * Ticks one checklist step. The whole array is no longer writable by a
+ * client — the database refuses it — so the optimistic patch flips exactly
+ * the one item, which is also what the RPC does.
+ */
+export function useSetChecklistItem() {
   const client = useQueryClient()
-  return useMutation<Task, Error, { taskId: string; checklist: ChecklistItem[] }, TaskRollback>({
-    mutationFn: ({ taskId, checklist }) => api.setTaskChecklist(taskId, checklist),
-    onMutate: async ({ taskId, checklist }) => {
+  return useMutation<void, Error, { taskId: string; itemId: string; done: boolean }, TaskRollback>({
+    mutationFn: ({ taskId, itemId, done }) => api.setChecklistItem(taskId, itemId, done),
+    onMutate: async ({ taskId, itemId, done }) => {
       await client.cancelQueries({ queryKey: qk.tasks })
-      const previous = patchTask(client, taskId, { checklist })
+      const current = client.getQueryData<Task[]>(qk.tasks)?.find((t) => t.id === taskId)
+      const previous = patchTask(client, taskId, {
+        checklist: (current?.checklist ?? []).map((c) => (c.id === itemId ? { ...c, done } : c)),
+      })
       return { previous }
     },
     onError: (error, _vars, context) => {

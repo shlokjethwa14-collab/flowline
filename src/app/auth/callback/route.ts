@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', origin))
   }
 
-  const supabase = getServerClient()
+  const supabase = await getServerClient()
   if (!supabase) {
     // Demo mode has no sessions to exchange.
     return NextResponse.redirect(new URL('/', origin))

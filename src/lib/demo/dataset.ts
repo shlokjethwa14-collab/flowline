@@ -5,6 +5,7 @@ import type {
   Profile,
   Task,
   TaskCategory,
+  TaskEvent,
   TaskHandoff,
   TaskRoutine,
 } from '@/lib/types'
@@ -18,19 +19,24 @@ export interface DemoDataset {
   handoffs: TaskHandoff[]
   routines: TaskRoutine[]
   calls: CallLog[]
+  /** Append-only history, mirroring public.task_events. */
+  events: TaskEvent[]
 }
 
 /** Seeds omit the fields that get sensible defaults, to keep this file readable. */
-type SeedTask = Omit<
-  Task,
-  'sop' | 'estimated_minutes' | 'category_id' | 'horizon' | 'original_due_date' | 'rollover_count' | 'call_log_id'
-> &
-  Partial<
-    Pick<
-      Task,
-      'sop' | 'estimated_minutes' | 'category_id' | 'horizon' | 'original_due_date' | 'rollover_count' | 'call_log_id'
-    >
-  >
+type SeedDefaulted =
+  | 'sop'
+  | 'estimated_minutes'
+  | 'category_id'
+  | 'horizon'
+  | 'original_due_date'
+  | 'rollover_count'
+  | 'call_log_id'
+  | 'blocked_reason'
+  | 'blocked_by'
+  | 'blocked_at'
+
+type SeedTask = Omit<Task, SeedDefaulted> & Partial<Pick<Task, SeedDefaulted>>
 
 /** An instant `dayOffset` days from today at local wall-clock `time`. */
 function at(dayOffset: number, time: string): string {
@@ -921,6 +927,9 @@ function buildPeriodWork(): SeedTask[] {
   ]
 }
 
+const BLOCKED_SEED_REASON =
+  'The dyeing unit has not confirmed a vehicle, so nothing can move until their supervisor calls back.'
+
 export function buildDemoDataset(): DemoDataset {
   const categories = buildCategories()
   const calls = buildCalls()
@@ -936,6 +945,11 @@ export function buildDemoDataset(): DemoDataset {
       original_due_date: seed.original_due_date ?? null,
       rollover_count: seed.rollover_count ?? 0,
       call_log_id: seed.call_log_id ?? null,
+      // A blocked task must carry a reason, exactly as the database now
+      // requires, so the demo cannot demonstrate a state production rejects.
+      blocked_reason: seed.blocked_reason ?? (seed.is_blocked ? BLOCKED_SEED_REASON : null),
+      blocked_by: seed.blocked_by ?? (seed.is_blocked ? seed.assigned_to : null),
+      blocked_at: seed.blocked_at ?? (seed.is_blocked ? seed.status_changed_at : null),
     }
   })
 
@@ -954,5 +968,6 @@ export function buildDemoDataset(): DemoDataset {
     handoffs: buildHandoffs(),
     routines: buildRoutines(),
     calls,
+    events: [],
   }
 }

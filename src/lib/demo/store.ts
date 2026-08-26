@@ -4,7 +4,6 @@ import type {
   ActivityLog,
   CallCommitment,
   CallLog,
-  ChecklistItem,
   CreateTaskInput,
   AddEmployeeInput,
   Profile,
@@ -12,6 +11,7 @@ import type {
   SaveCategoryInput,
   Task,
   TaskCategory,
+  TaskEvent,
   TaskHandoff,
   TaskRoutine,
   TaskStatus,
@@ -20,7 +20,16 @@ import type {
 import { combineDayAndTime, isWorkingDay, startOfWeekKey, toDayKey, todayKey, uid } from '@/lib/utils'
 import { buildDemoDataset, DEMO_EMPLOYEE_ID, DEMO_OWNER_ID, type DemoDataset } from './dataset'
 
-const STORAGE_KEY = 'flowline.demo.v3'
+/**
+ * Bumped whenever the demo shape changes.
+ *
+ * v4 adds the event log and blocked reasons. Reading a v3 payload would
+ * resurrect a blocked task with no reason — a row the database now refuses
+ * to store — and demo mode must never be able to show a state production
+ * rejects. Stale payloads are discarded rather than migrated: this is seed
+ * data, and a wrong migration is worse than a clean reseed.
+ */
+const STORAGE_KEY = 'flowline.demo.v4'
 const PREVIEW_KEY = 'flowline.demo.previewing'
 
 interface PersistedShape extends DemoDataset {
@@ -62,6 +71,7 @@ function readPersisted(): PersistedShape | null {
       handoffs: parsed.handoffs ?? [],
       routines: parsed.routines ?? [],
       calls: parsed.calls ?? [],
+      events: parsed.events ?? [],
       previewUserId: parsed.previewUserId ?? DEMO_OWNER_ID,
     }
   } catch {
@@ -160,6 +170,9 @@ export function demoSaveCall(input: SaveCallInput): CallLog {
       created_by: previewUserId,
       due_date: combineDayAndTime(commitment.due_date, commitment.due_time ?? '11:00'),
       is_blocked: false,
+      blocked_reason: null,
+      blocked_by: null,
+      blocked_at: null,
       status_changed_at: now,
       completed_at: null,
       task_type: commitmentTaskType(commitment.kind),
@@ -364,6 +377,9 @@ export function runRoutineGeneration(day: string = todayKey()): number {
       created_by: routine.created_by,
       due_date: combineDayAndTime(day, routine.due_time),
       is_blocked: false,
+      blocked_reason: null,
+      blocked_by: null,
+      blocked_at: null,
       status_changed_at: now,
       completed_at: null,
       task_type: routine.task_type,
@@ -425,6 +441,9 @@ export function demoCreateTask(input: CreateTaskInput): Task {
       created_by: actor,
       due_date: combineDayAndTime(todayKey(), routine.due_time),
       is_blocked: false,
+      blocked_reason: null,
+      blocked_by: null,
+      blocked_at: null,
       status_changed_at: now,
       completed_at: null,
       task_type: input.task_type,
@@ -455,6 +474,9 @@ export function demoCreateTask(input: CreateTaskInput): Task {
     created_by: actor,
     due_date: input.due_date,
     is_blocked: false,
+    blocked_reason: null,
+    blocked_by: null,
+    blocked_at: null,
     status_changed_at: now,
     completed_at: null,
     task_type: input.task_type,
@@ -475,37 +497,109 @@ export function demoCreateTask(input: CreateTaskInput): Task {
   return task
 }
 
+/**
+ * Demo mode mirrors the database rules exactly.
+ *
+ * If demo mode were more permissive it would hide production defects: a
+ * flow that works here would fail the moment Supabase is connected, and the
+ * demo is what people test with.
+ */
 export function demoUpdateTaskStatus(taskId: string, status: TaskStatus): Task {
   const data = ensure()
   const task = data.tasks.find((t) => t.id === taskId)
   if (!task) throw new Error('That work is no longer here.')
+
+  if (status === 'done' && task.status !== 'done') {
+    const total = task.checklist.length
+    const done = task.checklist.filter((c) => c.done).length
+    if (total > 0 && done < total) {
+      throw new Error(`Finish the checklist first — ${total - done} of ${total} steps are still open.`)
+    }
+    if (task.task_type === 'call') {
+      const hasEvidence =
+        task.call_log_id !== null ||
+        data.calls.some((c) => c.task_id === taskId) ||
+        data.activity.some((a) => a.task_id === taskId)
+      if (!hasEvidence) throw new Error('Record what was discussed before closing a call.')
+    }
+  }
+
   const now = new Date().toISOString()
+  const from = task.status
   if (task.status !== status) {
     task.status = status
     task.status_changed_at = now
     task.completed_at = status === 'done' ? now : null
   }
-  if (status === 'done') task.is_blocked = false
+  if (status === 'done') {
+    task.is_blocked = false
+    task.blocked_reason = null
+  }
+  recordEvent(task, from === status ? 'status_changed' : status === 'done' ? 'completed' : from === 'done' ? 'reopened' : 'status_changed', from)
   notify()
   return task
 }
 
-export function demoSetBlocked(taskId: string, blocked: boolean): Task {
+export function demoSetBlocked(taskId: string, blocked: boolean, reason: string | null = null): Task {
   const data = ensure()
   const task = data.tasks.find((t) => t.id === taskId)
   if (!task) throw new Error('That work is no longer here.')
+
+  if (blocked && (reason ?? '').trim().length < 10) {
+    throw new Error('Say what is blocking this, in at least 10 characters.')
+  }
+
   task.is_blocked = blocked
+  task.blocked_reason = blocked ? (reason ?? '').trim() : null
+  task.blocked_by = blocked ? previewUserId : null
+  task.blocked_at = blocked ? new Date().toISOString() : null
+  recordEvent(task, blocked ? 'blocked' : 'unblocked', task.status)
   notify()
   return task
 }
 
-export function demoSetChecklist(taskId: string, checklist: ChecklistItem[]): Task {
+/** Only the `done` flag on an existing step, exactly as the RPC allows. */
+export function demoSetChecklistItem(taskId: string, itemId: string, done: boolean): Task {
   const data = ensure()
   const task = data.tasks.find((t) => t.id === taskId)
   if (!task) throw new Error('That work is no longer here.')
-  task.checklist = checklist
+  const item = task.checklist.find((c) => c.id === itemId)
+  if (!item) throw new Error('That checklist step is not on this task.')
+  item.done = done
+  recordEvent(task, 'checklist_changed', task.status)
   notify()
   return task
+}
+
+/** Append-only, like the database table. Nothing here ever edits an event. */
+function recordEvent(task: Task, type: TaskEvent['event_type'], fromStatus: TaskStatus): void {
+  const data = ensure()
+  const actor = data.profiles.find((p) => p.id === previewUserId) ?? null
+  const assignee = task.assigned_to ? (data.profiles.find((p) => p.id === task.assigned_to) ?? null) : null
+  data.events.push({
+    id: uid(),
+    task_id: task.id,
+    event_type: type,
+    from_status: fromStatus,
+    to_status: task.status,
+    is_blocked: task.is_blocked,
+    blocked_reason: task.blocked_reason,
+    actor_id: previewUserId,
+    actor_name: actor?.full_name ?? null,
+    source: 'details',
+    checklist_done: task.checklist.filter((c) => c.done).length,
+    checklist_total: task.checklist.length,
+    task_title: task.title,
+    assignee_id: task.assigned_to,
+    assignee_name: assignee?.full_name ?? null,
+    due_date: task.due_date,
+    occurred_at: new Date().toISOString(),
+    occurred_on: todayKey(),
+  })
+}
+
+export function demoEvents(): TaskEvent[] {
+  return [...ensure().events]
 }
 
 export function demoAddActivity(taskId: string, content: string): ActivityLog {

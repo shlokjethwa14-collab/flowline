@@ -86,7 +86,16 @@ interface Props {
  * a plain editable box, because a wrong transcript quietly producing wrong
  * tasks is worse than typing it out.
  */
-export function CallRecorderDialog({ open, onOpenChange, taskId = null, defaultCounterparty = '' }: Props) {
+/**
+ * Keying the body on `open` makes React throw the previous instance away, so
+ * every fresh recording starts from clean state without an effect resetting
+ * a dozen values by hand.
+ */
+export function CallRecorderDialog(props: Props) {
+  return <CallRecorderBody key={props.open ? 'open' : 'closed'} {...props} />
+}
+
+function CallRecorderBody({ open, onOpenChange, taskId = null, defaultCounterparty = '' }: Props) {
   const { profile } = useCurrentUser()
   const { data: profiles } = useProfiles()
   const analyse = useAnalyseCall()
@@ -124,23 +133,12 @@ export function CallRecorderDialog({ open, onOpenChange, taskId = null, defaultC
     setInterim('')
   }, [])
 
-  // Never leave the microphone open behind a closed dialog.
-  useEffect(() => {
-    if (!open) {
-      stopEverything()
-      return
-    }
-    setCounterparty(defaultCounterparty)
-    setTranscript('')
-    setSummary('')
-    setCommitments([])
-    setIntel([])
-    setKeep({})
-    setSeconds(0)
-    setAnalysed(false)
-    setAssignTo(profile?.id ?? '')
-  }, [open, defaultCounterparty, profile?.id, stopEverything])
-
+  /**
+   * Releasing the microphone on unmount is the only cleanup needed. The body
+   * is keyed on `open`, so closing the dialog discards this instance and
+   * runs this cleanup — no separate effect watching `open`, and no cascade
+   * of setState calls resetting a dozen values by hand.
+   */
   useEffect(() => stopEverything, [stopEverything])
 
   async function startListening() {

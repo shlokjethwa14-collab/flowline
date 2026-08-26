@@ -46,16 +46,30 @@ function apply(theme: Theme): 'light' | 'dark' {
   return dark ? 'dark' : 'light'
 }
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('system')
-  const [resolved, setResolved] = useState<'light' | 'dark'>('light')
+function readStoredTheme(): Theme {
+  if (typeof window === 'undefined') return 'system'
+  try {
+    return (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? 'system'
+  } catch {
+    return 'system'
+  }
+}
 
-  // Adopt whatever the pre-paint script already decided.
-  useEffect(() => {
-    const stored = (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? 'system'
-    setThemeState(stored)
-    setResolved(document.documentElement.classList.contains('dark') ? 'dark' : 'light')
-  }, [])
+function readResolved(): 'light' | 'dark' {
+  if (typeof document === 'undefined') return 'light'
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+}
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  /**
+   * Initialised lazily from what the pre-paint script already decided,
+   * rather than adopted afterwards in an effect. Setting state synchronously
+   * inside an effect causes a second render pass on every mount, and React's
+   * rules flag it — reading the external system once during initialisation
+   * is both cheaper and the documented pattern.
+   */
+  const [theme, setThemeState] = useState<Theme>(readStoredTheme)
+  const [resolved, setResolved] = useState<'light' | 'dark'>(readResolved)
 
   // Follow the OS while the choice is `system`.
   useEffect(() => {

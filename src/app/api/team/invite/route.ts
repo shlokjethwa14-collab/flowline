@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     return fail('Supabase is not configured on this deployment.', 400)
   }
 
-  const supabase = getServerClient()
+  const supabase = await getServerClient()
   if (!supabase) return fail('Supabase is not configured on this deployment.', 400)
 
   const {

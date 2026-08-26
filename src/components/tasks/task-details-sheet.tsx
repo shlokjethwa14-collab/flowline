@@ -43,7 +43,7 @@ import {
   useDeleteTask,
   useHandoffTask,
   useProfiles,
-  useSetChecklist,
+  useSetChecklistItem,
   useSetTaskBlocked,
   useUpdateTaskStatus,
 } from '@/lib/data/queries'
@@ -137,12 +137,14 @@ function TaskSheetBody({ task, onClose }: { task: Task; onClose: () => void }) {
 
   const updateStatus = useUpdateTaskStatus()
   const setBlocked = useSetTaskBlocked()
-  const setChecklist = useSetChecklist()
+  const setChecklistItem = useSetChecklistItem()
   const addActivity = useAddActivity()
   const handoff = useHandoffTask()
   const deleteTask = useDeleteTask()
 
   const [handoffOpen, setHandoffOpen] = useState(false)
+  const [blockOpen, setBlockOpen] = useState(false)
+  const [blockReason, setBlockReason] = useState('')
 
   const meta = taskTypeMeta(task.task_type)
   const owner = task.assigned_to ? (profileMap.get(task.assigned_to) ?? null) : null
@@ -176,21 +178,37 @@ function TaskSheetBody({ task, onClose }: { task: Task; onClose: () => void }) {
   function applyOutcome(next: WorkOutcome) {
     if (!canAct) return
     if (next === 'blocked') {
-      setBlocked.mutate({ taskId: task.id, blocked: true })
-      if (task.status === 'todo') updateStatus.mutate({ taskId: task.id, status: 'in_progress' })
+      // A reason is required by the database, so ask for it here rather than
+      // letting the request fail with a rejection the person cannot act on.
+      setBlockOpen(true)
       return
     }
     if (task.is_blocked) setBlocked.mutate({ taskId: task.id, blocked: false })
     const statusFor = { continue: 'in_progress', review: 'review', done: 'done' } as const
-    updateStatus.mutate({ taskId: task.id, status: statusFor[next] })
+    updateStatus.mutate({ taskId: task.id, status: statusFor[next], source: 'details' })
+  }
+
+  function submitBlock() {
+    const reason = blockReason.trim()
+    if (reason.length < 10) return
+    setBlocked.mutate(
+      { taskId: task.id, blocked: true, reason },
+      {
+        onSuccess: () => {
+          setBlockOpen(false)
+          setBlockReason('')
+          if (task.status === 'todo') {
+            updateStatus.mutate({ taskId: task.id, status: 'in_progress', source: 'details' })
+          }
+        },
+      },
+    )
   }
 
   function toggleChecklistItem(itemId: string, done: boolean) {
     if (!canAct) return
-    setChecklist.mutate({
-      taskId: task.id,
-      checklist: task.checklist.map((c) => (c.id === itemId ? { ...c, done } : c)),
-    })
+    // One step at a time: the database will not accept a rewritten array.
+    setChecklistItem.mutate({ taskId: task.id, itemId, done })
   }
 
   const onSubmitNote = noteForm.handleSubmit((values) => {
@@ -320,6 +338,56 @@ function TaskSheetBody({ task, onClose }: { task: Task; onClose: () => void }) {
                 ) : null,
               )}
             </div>
+          </section>
+        )}
+
+        {/* --- Blocked reason ---------------------------------------- */}
+        {blockOpen && canAct && (
+          <section className="glass-panel space-y-3 p-4">
+            <Label htmlFor="block-reason">
+              What is blocking this? <span className="text-[color:var(--danger)]">*</span>
+            </Label>
+            <Textarea
+              id="block-reason"
+              autoFocus
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+              placeholder="For example: the dyeing unit has not confirmed a vehicle and their supervisor has not called back."
+              className="min-h-[76px] text-[13.5px]"
+              aria-describedby="block-reason-help"
+            />
+            <p id="block-reason-help" className="text-[12px] text-zinc-500">
+              At least 10 characters. This appears in tonight’s evening report so the blockage can be cleared.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                onClick={submitBlock}
+                disabled={blockReason.trim().length < 10 || setBlocked.isPending}
+                className="gap-1.5"
+              >
+                {setBlocked.isPending ? <Loader2 className="animate-spin" /> : <CircleAlert />}
+                Mark blocked
+              </Button>
+              <Button variant="glass" onClick={() => setBlockOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </section>
+        )}
+
+        {task.is_blocked && task.blocked_reason && !blockOpen && (
+          <section className="glass-panel space-y-1.5 p-4 ring-1 ring-inset ring-[color:var(--danger)]/25">
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[color:var(--danger)]">
+              <CircleAlert className="h-3.5 w-3.5" />
+              Blocked
+              {task.blocked_at && <span className="font-normal normal-case">· {timeAgo(task.blocked_at)}</span>}
+            </p>
+            <p className="text-[13.5px] leading-relaxed text-zinc-700">{task.blocked_reason}</p>
+            {task.blocked_by && (
+              <p className="text-[12px] text-zinc-500">
+                Flagged by {profileMap.get(task.blocked_by)?.full_name ?? 'someone'}
+              </p>
+            )}
           </section>
         )}
 

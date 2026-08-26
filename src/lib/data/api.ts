@@ -10,7 +10,6 @@ import type {
   CallCommitment,
   CallIntel,
   CallLog,
-  ChecklistItem,
   CreateTaskInput,
   Profile,
   SaveCallInput,
@@ -392,41 +391,69 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
   return data
 }
 
-export async function updateTaskStatus(taskId: string, status: TaskStatus): Promise<Task> {
+/**
+ * Status, blocked state and checklist all go through narrow RPCs now.
+ *
+ * The database refuses the equivalent direct writes — a broad row update let
+ * an employee rewrite checklist labels, block work without a reason, and
+ * forge audit timestamps. `source` is carried through so the event log can
+ * say the change came from the board rather than "somewhere".
+ */
+export type ChangeSource = 'details' | 'kanban' | 'api' | 'admin'
+
+export async function updateTaskStatus(
+  taskId: string,
+  status: TaskStatus,
+  source: ChangeSource = 'details',
+): Promise<Task> {
   if (IS_DEMO) return tick(demo.demoUpdateTaskStatus(taskId, status))
   const supabase = getBrowserClient()
   if (!supabase) throw new Error('Supabase is not configured.')
-  const patch: { status: TaskStatus; is_blocked?: boolean } = { status }
-  if (status === 'done') patch.is_blocked = false
-  const { data, error } = await supabase.from('tasks').update(patch).eq('id', taskId).select('*').single()
+  const { data, error } = await supabase.rpc('set_task_status', {
+    p_task_id: taskId,
+    p_status: status,
+    p_source: source,
+  })
   raise(error)
   if (!data) throw new Error('That work is no longer here.')
   return data
 }
 
-export async function setTaskBlocked(taskId: string, blocked: boolean): Promise<Task> {
-  if (IS_DEMO) return tick(demo.demoSetBlocked(taskId, blocked))
+export async function setTaskBlocked(
+  taskId: string,
+  blocked: boolean,
+  reason: string | null = null,
+  source: ChangeSource = 'details',
+): Promise<Task> {
+  if (IS_DEMO) return tick(demo.demoSetBlocked(taskId, blocked, reason))
   const supabase = getBrowserClient()
   if (!supabase) throw new Error('Supabase is not configured.')
-  const { data, error } = await supabase
-    .from('tasks')
-    .update({ is_blocked: blocked })
-    .eq('id', taskId)
-    .select('*')
-    .single()
+  const { data, error } = await supabase.rpc('set_task_blocked', {
+    p_task_id: taskId,
+    p_blocked: blocked,
+    p_reason: reason ?? undefined,
+    p_source: source,
+  })
   raise(error)
   if (!data) throw new Error('That work is no longer here.')
   return data
 }
 
-export async function setTaskChecklist(taskId: string, checklist: ChecklistItem[]): Promise<Task> {
-  if (IS_DEMO) return tick(demo.demoSetChecklist(taskId, checklist))
+/** Ticking one box. The whole array is never writable by a client. */
+export async function setChecklistItem(taskId: string, itemId: string, done: boolean): Promise<void> {
+  if (IS_DEMO) {
+    demo.demoSetChecklistItem(taskId, itemId, done)
+    await tick(null)
+    return
+  }
   const supabase = getBrowserClient()
   if (!supabase) throw new Error('Supabase is not configured.')
-  const { data, error } = await supabase.from('tasks').update({ checklist }).eq('id', taskId).select('*').single()
+  const { error } = await supabase.rpc('set_checklist_item', {
+    p_task_id: taskId,
+    p_item_id: itemId,
+    p_done: done,
+  })
   raise(error)
-  if (!data) throw new Error('That work is no longer here.')
-  return data
 }
 
 export async function addActivity(taskId: string, content: string): Promise<ActivityLog> {

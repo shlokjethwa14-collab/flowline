@@ -46,7 +46,7 @@ export function TaskCard({
   const profiles = useProfileMap()
   const { data: categories } = useCategories()
   const updateStatus = useUpdateTaskStatus()
-  const spec = useSpecular<HTMLElement>()
+  const { specRef, onPointerMove, onPointerLeave } = useSpecular<HTMLElement>()
 
   const assignee = task.assigned_to ? (profiles.get(task.assigned_to) ?? null) : null
   const progress = checklistProgress(task.checklist)
@@ -65,9 +65,9 @@ export function TaskCard({
 
   return (
     <article
-      ref={spec.ref}
-      onPointerMove={spec.onPointerMove}
-      onPointerLeave={spec.onPointerLeave}
+      ref={specRef}
+      onPointerMove={onPointerMove}
+      onPointerLeave={onPointerLeave}
       className={cn(
         'glass glass-quiet spec group relative overflow-hidden rounded-3xl p-4',
         'transition-[transform,box-shadow] duration-200 ease-apple-snap',

@@ -10,6 +10,7 @@ import { TaskCard, TaskCardSkeleton } from '@/components/tasks/task-card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { useCurrentUser, useVisibleTasks } from '@/hooks/use-flowline'
+import { useNow } from '@/hooks/use-specular'
 import { MY_DAY_GROUPS } from '@/lib/task-meta'
 import type { Task } from '@/lib/types'
 import { checklistProgress, daysLeftInPeriod, formatFriendlyDay, isOverdue, isSameDay, todayKey } from '@/lib/utils'
@@ -66,6 +67,7 @@ function PeriodSection({ horizon, tasks }: { horizon: 'week' | 'month'; tasks: T
 export default function MyDayPage() {
   const { profile, isAdmin, isLoading: userLoading } = useCurrentUser()
   const { tasks, isLoading } = useVisibleTasks()
+  const now = useNow()
 
   // This screen is always personal. For an admin `useVisibleTasks` returns the
   // whole company, so narrow to what they actually own themselves.
@@ -100,15 +102,26 @@ export default function MyDayPage() {
     }
   }, [dayTasks])
 
-  /** Everything of mine still open, regardless of date — the forward look. */
-  const upcoming = useMemo(
-    () =>
-      mine
-        .filter((t) => t.status !== 'done' && t.due_date && new Date(t.due_date).getTime() > Date.now())
-        .sort((a, b) => new Date(a.due_date ?? 0).getTime() - new Date(b.due_date ?? 0).getTime())
-        .slice(0, 5),
-    [mine],
-  )
+  /**
+   * The forward look. Excludes anything already shown in today's groups or
+   * in the week/month sections, so the same job never appears twice on one
+   * screen. `now` comes from state rather than Date.now() at render, which
+   * keeps the component pure and the list stable between renders.
+   */
+  const upcoming = useMemo(() => {
+    const alreadyShown = new Set([...dayTasks, ...weekTasks, ...monthTasks].map((t) => t.id))
+    return mine
+      .filter(
+        (t) =>
+          !alreadyShown.has(t.id) &&
+          t.status !== 'done' &&
+          t.horizon === 'day' &&
+          t.due_date &&
+          new Date(t.due_date).getTime() > now,
+      )
+      .sort((a, b) => new Date(a.due_date ?? 0).getTime() - new Date(b.due_date ?? 0).getTime())
+      .slice(0, 5)
+  }, [mine, dayTasks, weekTasks, monthTasks, now])
 
   const groups = useMemo(
     () =>
@@ -265,9 +278,11 @@ export default function MyDayPage() {
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.011em] text-zinc-800">
               <CalendarRange className="h-4 w-4 text-zinc-400" strokeWidth={1.9} />
-              Coming up
+              Later this week and beyond
             </h2>
-            <Badge variant="outline">next {upcoming.length}</Badge>
+            <Badge variant="outline">
+              next {upcoming.length}, not counted in today
+            </Badge>
             <Link
               href="/calendar"
               className="ml-auto text-[12.5px] font-medium text-primary underline-offset-4 hover:underline"

@@ -1,19 +1,19 @@
 -- =====================================================================
--- Flowline — complete schema
+-- Flowline - consolidated schema
 -- =====================================================================
--- Run this once on a fresh Supabase project:
---   Dashboard -> SQL Editor -> paste -> Run
--- or:  psql "$DATABASE_URL" -f supabase/schema.sql
+-- Generated from supabase/migrations/*.sql in order. Applying this file to
+-- a fresh database is equivalent to applying every migration.
 --
--- It is the same content as migrations/0001..0006 concatenated, and it is
--- safe to re-run: every object is created with IF NOT EXISTS or replaced.
+-- Do not hand-edit: add a new numbered migration and regenerate with
+--   npm run schema:build
 -- =====================================================================
+
+-- =====================================================================
+-- 0001_init.sql
+-- =====================================================================
+-- 0001_init — extensions, enums, tables and indexes.
 
 create extension if not exists pgcrypto;
-
--- ---------------------------------------------------------------------
--- 1. Enums
--- ---------------------------------------------------------------------
 
 do $$
 begin
@@ -28,10 +28,6 @@ begin
   end if;
 end
 $$;
-
--- ---------------------------------------------------------------------
--- 2. Tables
--- ---------------------------------------------------------------------
 
 create table if not exists public.profiles (
   id          uuid primary key references auth.users (id) on delete cascade,
@@ -49,7 +45,6 @@ create table if not exists public.task_routines (
   task_type         public.task_type not null default 'general',
   assigned_to       uuid references public.profiles (id) on delete set null,
   created_by        uuid references public.profiles (id) on delete set null,
-  -- Wall-clock time the generated task is due, stored as 'HH:MM'.
   due_time          text not null default '17:00',
   checklist         jsonb not null default '[]'::jsonb,
   active            boolean not null default true,
@@ -73,8 +68,6 @@ create table if not exists public.tasks (
   completed_at      timestamptz,
   task_type         public.task_type not null default 'general',
   checklist         jsonb not null default '[]'::jsonb,
-  -- Set only on tasks produced by a daily routine; together with routine_on
-  -- these give the generator its idempotency key.
   routine_id        uuid references public.task_routines (id) on delete set null,
   routine_on        date,
   created_at        timestamptz not null default now(),
@@ -96,15 +89,10 @@ create table if not exists public.task_handoffs (
   task_id      uuid not null references public.tasks (id) on delete cascade,
   from_user_id uuid references public.profiles (id) on delete set null,
   to_user_id   uuid references public.profiles (id) on delete set null,
-  -- A handoff without a written reason is not a handoff.
   note         text not null,
   created_at   timestamptz not null default now(),
   constraint task_handoffs_note_required check (length(btrim(note)) >= 10)
 );
-
--- ---------------------------------------------------------------------
--- 3. Indexes
--- ---------------------------------------------------------------------
 
 create index if not exists profiles_reports_to_idx on public.profiles (reports_to);
 create index if not exists tasks_assigned_to_idx   on public.tasks (assigned_to);
@@ -116,16 +104,16 @@ create index if not exists handoffs_task_idx       on public.task_handoffs (task
 create index if not exists handoffs_created_idx    on public.task_handoffs (created_at desc);
 create index if not exists routines_assigned_idx   on public.task_routines (assigned_to);
 
--- One task per routine per day. This is what makes generation idempotent.
 create unique index if not exists tasks_routine_once_per_day_idx
   on public.tasks (routine_id, routine_on)
   where routine_id is not null and routine_on is not null;
 
--- ---------------------------------------------------------------------
--- 4. Helper functions
--- ---------------------------------------------------------------------
--- These are SECURITY DEFINER so they read the tables without re-entering
--- RLS, which is what stops the profiles policies recursing forever.
+
+-- =====================================================================
+-- 0002_helpers.sql
+-- =====================================================================
+-- 0002_helpers — SECURITY DEFINER predicates used by the RLS policies.
+-- Defining them this way keeps the profiles policies from recursing.
 
 create or replace function public.is_admin()
 returns boolean
@@ -155,14 +143,13 @@ as $$
          );
 $$;
 
--- ---------------------------------------------------------------------
--- 5. Triggers
--- ---------------------------------------------------------------------
 
--- 5a. Every auth user gets a profile. The role is decided HERE, in the
---     database — never read from client-supplied metadata. The first person
---     to sign up bootstraps as the owner; everyone after that is an employee
---     until an admin promotes them.
+-- =====================================================================
+-- 0003_triggers.sql
+-- =====================================================================
+-- 0003_triggers — profile bootstrap, protected columns, timestamps, handoff rules.
+
+-- The role is decided in the database, never read from client metadata.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -170,7 +157,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_role         public.user_role := 'employee';
+  v_role          public.user_role := 'employee';
   v_profile_count integer;
 begin
   select count(*) into v_profile_count from public.profiles;
@@ -199,8 +186,6 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- 5b. Nobody can promote themselves. Even if a client crafts an update that
---     passes RLS, this refuses the role change.
 create or replace function public.protect_profile_columns()
 returns trigger
 language plpgsql
@@ -236,9 +221,6 @@ create trigger profiles_protect_columns
   before update on public.profiles
   for each row execute function public.protect_profile_columns();
 
--- 5c. Employees may change status, blocked state and checklist progress.
---     Everything else on a task belongs to the owner. Reassignment is only
---     legal inside handoff_task(), which sets the flowline.handoff flag.
 create or replace function public.protect_task_columns()
 returns trigger
 language plpgsql
@@ -274,8 +256,6 @@ create trigger tasks_protect_columns
   before update on public.tasks
   for each row execute function public.protect_task_columns();
 
--- 5d. Status and completion timestamps are maintained by the database, so
---     they are always trustworthy no matter which client wrote the row.
 create or replace function public.touch_task_timestamps()
 returns trigger
 language plpgsql
@@ -301,7 +281,6 @@ begin
     end if;
   end if;
 
-  -- Finished work cannot also be blocked.
   if new.status = 'done' then
     new.is_blocked := false;
   end if;
@@ -315,8 +294,6 @@ create trigger tasks_touch_timestamps
   before insert or update on public.tasks
   for each row execute function public.touch_task_timestamps();
 
--- 5e. A handoff must name a real reason and must come from the person who
---     actually holds the work (owners excepted).
 create or replace function public.validate_handoff()
 returns trigger
 language plpgsql
@@ -364,13 +341,12 @@ create trigger handoffs_validate
   before insert on public.task_handoffs
   for each row execute function public.validate_handoff();
 
--- ---------------------------------------------------------------------
--- 6. Remote procedures
--- ---------------------------------------------------------------------
 
--- 6a. The only supported way to move work between people. Reassigns the task,
---     records who passed it and why, and writes the reason into the activity
---     log so it appears in the evening report.
+-- =====================================================================
+-- 0004_rpc.sql
+-- =====================================================================
+-- 0004_rpc — the authenticated handoff procedure and the idempotent routine generator.
+
 create or replace function public.handoff_task(
   p_task_id uuid,
   p_to_user uuid,
@@ -418,8 +394,6 @@ begin
 
   v_from := v_task.assigned_to;
 
-  -- Transaction-local flag that lets protect_task_columns() allow this one
-  -- reassignment. It is cleared automatically when the statement ends.
   perform set_config('flowline.handoff', 'on', true);
 
   update public.tasks
@@ -440,10 +414,6 @@ begin
 end;
 $$;
 
--- 6b. Materialises one task per active daily routine per working day.
---     Idempotent: the unique index on (routine_id, routine_on) means running
---     it a hundred times a day still produces exactly one task per routine.
---     Sunday is not a working day.
 create or replace function public.generate_routine_tasks(p_on date default (now() at time zone 'utc')::date)
 returns integer
 language plpgsql
@@ -459,7 +429,6 @@ begin
     return 0;
   end if;
 
-  -- 7 = Sunday under ISO numbering.
   if extract(isodow from p_on) = 7 then
     return 0;
   end if;
@@ -480,7 +449,6 @@ begin
       v_created := v_created + 1;
     exception
       when unique_violation then
-        -- Another session generated it first. That is the desired outcome.
         null;
     end;
 
@@ -493,9 +461,11 @@ begin
 end;
 $$;
 
--- ---------------------------------------------------------------------
--- 7. Row Level Security
--- ---------------------------------------------------------------------
+
+-- =====================================================================
+-- 0005_rls.sql
+-- =====================================================================
+-- 0005_rls — Row Level Security and grants.
 
 alter table public.profiles      enable row level security;
 alter table public.tasks         enable row level security;
@@ -503,10 +473,7 @@ alter table public.activity_logs enable row level security;
 alter table public.task_handoffs enable row level security;
 alter table public.task_routines enable row level security;
 
--- 7a. profiles ---------------------------------------------------------
--- Everyone signed in can read the directory: names are needed for the org
--- chart, assignee lists and handoff history. Writing is owner-only, and the
--- protect_profile_columns trigger blocks self-promotion regardless.
+-- profiles -------------------------------------------------------------
 
 drop policy if exists profiles_select on public.profiles;
 create policy profiles_select on public.profiles
@@ -529,7 +496,7 @@ create policy profiles_delete_admin on public.profiles
   for delete to authenticated
   using (public.is_admin());
 
--- 7b. tasks ------------------------------------------------------------
+-- tasks ----------------------------------------------------------------
 
 drop policy if exists tasks_select on public.tasks;
 create policy tasks_select on public.tasks
@@ -545,8 +512,6 @@ create policy tasks_insert_admin on public.tasks
   for insert to authenticated
   with check (public.is_admin());
 
--- Employees may update the tasks they hold. Which COLUMNS they may touch is
--- enforced by the protect_task_columns trigger, not by this policy.
 drop policy if exists tasks_update on public.tasks;
 create policy tasks_update on public.tasks
   for update to authenticated
@@ -558,7 +523,7 @@ create policy tasks_delete_admin on public.tasks
   for delete to authenticated
   using (public.is_admin());
 
--- 7c. activity_logs ----------------------------------------------------
+-- activity_logs --------------------------------------------------------
 
 drop policy if exists activity_select on public.activity_logs;
 create policy activity_select on public.activity_logs
@@ -581,7 +546,7 @@ create policy activity_delete_admin on public.activity_logs
   for delete to authenticated
   using (public.is_admin());
 
--- 7d. task_handoffs ----------------------------------------------------
+-- task_handoffs --------------------------------------------------------
 
 drop policy if exists handoffs_select on public.task_handoffs;
 create policy handoffs_select on public.task_handoffs
@@ -601,13 +566,12 @@ create policy handoffs_insert on public.task_handoffs
     or (from_user_id = auth.uid() and public.can_see_task(task_id))
   );
 
--- History is a record. Nobody edits or deletes it except the owner.
 drop policy if exists handoffs_delete_admin on public.task_handoffs;
 create policy handoffs_delete_admin on public.task_handoffs
   for delete to authenticated
   using (public.is_admin());
 
--- 7e. task_routines ----------------------------------------------------
+-- task_routines --------------------------------------------------------
 
 drop policy if exists routines_select on public.task_routines;
 create policy routines_select on public.task_routines
@@ -630,10 +594,7 @@ create policy routines_delete_admin on public.task_routines
   for delete to authenticated
   using (public.is_admin());
 
--- ---------------------------------------------------------------------
--- 8. Grants
--- ---------------------------------------------------------------------
--- RLS decides the rows; these grants decide that the role may ask at all.
+-- grants ---------------------------------------------------------------
 
 grant usage on schema public to anon, authenticated;
 
@@ -643,16 +604,16 @@ grant select, insert, update, delete on public.activity_logs to authenticated;
 grant select, insert, delete         on public.task_handoffs to authenticated;
 grant select, insert, update, delete on public.task_routines to authenticated;
 
-grant execute on function public.is_admin()                        to authenticated;
-grant execute on function public.can_see_task(uuid)                to authenticated;
-grant execute on function public.handoff_task(uuid, uuid, text)    to authenticated;
-grant execute on function public.generate_routine_tasks(date)      to authenticated;
+grant execute on function public.is_admin()                     to authenticated;
+grant execute on function public.can_see_task(uuid)             to authenticated;
+grant execute on function public.handoff_task(uuid, uuid, text) to authenticated;
+grant execute on function public.generate_routine_tasks(date)   to authenticated;
 
--- ---------------------------------------------------------------------
--- 9. Realtime
--- ---------------------------------------------------------------------
--- Every screen stays live. REPLICA IDENTITY FULL makes deletes and filtered
--- updates carry enough of the old row for clients to react correctly.
+
+-- =====================================================================
+-- 0006_realtime.sql
+-- =====================================================================
+-- 0006_realtime — publish the tables so every open screen stays live.
 
 alter table public.tasks         replica identity full;
 alter table public.activity_logs replica identity full;
@@ -680,11 +641,11 @@ begin
 end
 $$;
 
+
 -- =====================================================================
--- Done. Next: sign in once with your own email — the first account
--- becomes the owner automatically.
+-- 0007_sop_categories.sql
 -- =====================================================================
--- 0007_sop_categories â€” custom work types, standard procedures, time estimates.
+-- 0007_sop_categories — custom work types, standard procedures, time estimates.
 
 -- Work types a company defines for itself, on top of the seven built-ins.
 -- `base_type` keeps a custom type grouped correctly on My Day and in the
@@ -861,7 +822,12 @@ begin
   end if;
 end
 $$;
--- 0008_calls_rollover_periods â€” call logs, automatic carry-forward,
+
+
+-- =====================================================================
+-- 0008_calls_rollover_periods.sql
+-- =====================================================================
+-- 0008_calls_rollover_periods — call logs, automatic carry-forward,
 -- and work that belongs to a week or a month rather than to a single day.
 
 -- ---------------------------------------------------------------------
@@ -973,7 +939,7 @@ $$;
 -- 4. Carry unfinished work forward
 -- ---------------------------------------------------------------------
 -- Idempotent: anything already due today or later is untouched, so calling
--- this on every load is free. Week and month work is never rolled â€” it is not
+-- this on every load is free. Week and month work is never rolled — it is not
 -- late until its period ends.
 
 create or replace function public.roll_over_unfinished(p_on date default (now() at time zone 'utc')::date)
@@ -1211,6 +1177,1011 @@ begin
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'call_logs'
   ) then
     alter publication supabase_realtime add table public.call_logs;
+  end if;
+end
+$$;
+
+
+-- =====================================================================
+-- 0009_org_timezone.sql
+-- =====================================================================
+-- 0009_org_timezone
+--
+-- One authoritative timezone for the company.
+--
+-- Every "what day is it" decision — rollovers, routine generation, report
+-- dates, call commitment dates — previously resolved against whatever the
+-- session timezone happened to be. For a Postgres connection that is UTC,
+-- so a factory in Ahmedabad had its day roll over at 05:30 local, and an
+-- evening report run at 22:00 IST was filed against the following date.
+--
+-- These helpers are the only sanctioned way to answer that question.
+
+create table if not exists public.org_settings (
+  -- Single row, enforced by the primary key plus the check below.
+  id            boolean primary key default true,
+  timezone      text not null default 'Asia/Kolkata',
+  -- Working days, ISO numbering: 1 = Monday … 7 = Sunday.
+  working_days  smallint[] not null default '{1,2,3,4,5,6}',
+  created_at    timestamptz not null default now(),
+  constraint org_settings_singleton check (id),
+  constraint org_settings_timezone_valid check (length(btrim(timezone)) > 0)
+);
+
+insert into public.org_settings (id) values (true) on conflict (id) do nothing;
+
+-- Reject a timezone Postgres cannot resolve, rather than silently falling
+-- back to UTC at read time.
+create or replace function public.assert_timezone_valid()
+returns trigger
+language plpgsql
+as $$
+begin
+  perform now() at time zone new.timezone;
+  return new;
+exception
+  when invalid_parameter_value or undefined_object then
+    raise exception '% is not a timezone Postgres recognises.', new.timezone using errcode = '22023';
+end;
+$$;
+
+drop trigger if exists org_settings_tz_valid on public.org_settings;
+create trigger org_settings_tz_valid
+  before insert or update on public.org_settings
+  for each row execute function public.assert_timezone_valid();
+
+create or replace function public.org_timezone()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select timezone from public.org_settings where id), 'UTC');
+$$;
+
+/** The organisation's current calendar day. */
+create or replace function public.org_today()
+returns date
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select (now() at time zone public.org_timezone())::date;
+$$;
+
+/**
+ * Builds a timestamptz for a wall-clock time on a given day, interpreted in
+ * the organisation's timezone.
+ *
+ * `(timestamp without time zone) AT TIME ZONE tz` converts a local wall
+ * clock into an absolute instant, which is exactly the intent — and is what
+ * string concatenation into a timestamptz cast got wrong, because that path
+ * used the session zone instead.
+ */
+create or replace function public.org_timestamp(p_day date, p_time text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select ((p_day::text || ' ' || coalesce(nullif(btrim(p_time), ''), '00:00'))::timestamp)
+           at time zone public.org_timezone();
+$$;
+
+/** True when the given day is a working day for this organisation. */
+create or replace function public.org_is_working_day(p_day date)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select extract(isodow from p_day)::smallint = any(
+    coalesce((select working_days from public.org_settings where id), '{1,2,3,4,5,6}')
+  );
+$$;
+
+-- Everyone signed in may read the timezone; only an owner may change it.
+alter table public.org_settings enable row level security;
+
+drop policy if exists org_settings_select on public.org_settings;
+create policy org_settings_select on public.org_settings
+  for select to authenticated using (true);
+
+drop policy if exists org_settings_update_admin on public.org_settings;
+create policy org_settings_update_admin on public.org_settings
+  for update to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+grant select on public.org_settings to authenticated;
+grant update on public.org_settings to authenticated;
+
+grant execute on function public.org_timezone()               to authenticated;
+grant execute on function public.org_today()                  to authenticated;
+grant execute on function public.org_timestamp(date, text)    to authenticated;
+grant execute on function public.org_is_working_day(date)     to authenticated;
+
+
+-- =====================================================================
+-- 0010_authorization_hardening.sql
+-- =====================================================================
+-- 0009_authorization_hardening
+--
+-- Closes the privilege-escalation holes in the SECURITY DEFINER surface.
+--
+-- Threat model: an employee holds a valid anon-key session and can call any
+-- exposed RPC or PostgREST endpoint directly with curl. Nothing in React is
+-- a control. Everything below is enforced in the database.
+--
+-- A note on GRANTs. Admins are `authenticated` too, so revoking EXECUTE from
+-- `authenticated` would lock owners out as well — there is no separate role
+-- to grant to. The enforcement therefore lives inside each function, which
+-- also lets the failure carry a message a person can act on. Where a table
+-- write has no legitimate direct path at all (call_logs), the privilege IS
+-- revoked outright and the RPC becomes the only way in.
+
+-- ---------------------------------------------------------------------
+-- 1. Shared guard
+-- ---------------------------------------------------------------------
+
+create or replace function public.require_admin(p_action text)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Please sign in again.' using errcode = '42501';
+  end if;
+  if not public.is_admin() then
+    raise exception 'Only an owner can %.', p_action using errcode = '42501';
+  end if;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 2. roll_over_unfinished — admin only
+-- ---------------------------------------------------------------------
+-- Previously any signed-in user could move every unfinished deadline in the
+-- company forward, which both rewrote other people's work and corrupted the
+-- historical record of what was late.
+
+create or replace function public.roll_over_unfinished(p_on date default null)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_moved integer := 0;
+  v_on    date;
+begin
+  perform public.require_admin('carry work forward');
+
+  -- Default to the organisation's today, not the session's.
+  v_on := coalesce(p_on, public.org_today());
+
+  -- A rollover is only ever "to today". Accepting an arbitrary date would
+  -- let an admin silently rewrite history or schedule far into the future.
+  if v_on <> public.org_today() then
+    raise exception 'Work can only be carried forward to today (%).', public.org_today()
+      using errcode = '22023';
+  end if;
+
+  perform set_config('flowline.rollover', 'on', true);
+
+  with moved as (
+    update public.tasks t
+       set original_due_date = coalesce(t.original_due_date, t.due_date::date),
+           rollover_count    = t.rollover_count + 1,
+           due_date          = (v_on::text || ' ' || to_char(t.due_date, 'HH24:MI:SS'))::timestamptz
+     where t.status <> 'done'
+       and t.horizon = 'day'
+       and t.due_date is not null
+       and t.due_date::date < v_on
+     returning 1
+  )
+  select count(*) into v_moved from moved;
+
+  perform set_config('flowline.rollover', 'off', true);
+  return v_moved;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 3. generate_routine_tasks — admin only, bounded date
+-- ---------------------------------------------------------------------
+
+create or replace function public.generate_routine_tasks(p_on date default null)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_routine public.task_routines;
+  v_created integer := 0;
+  v_due     timestamptz;
+  v_period  date;
+  v_horizon public.task_horizon;
+  v_on      date;
+  v_today   date;
+begin
+  perform public.require_admin('generate recurring work');
+
+  v_today := public.org_today();
+  v_on := coalesce(p_on, v_today);
+
+  -- Bounded window. An unbounded date let a caller materialise a year of
+  -- work in one request, or backfill tasks into closed reporting periods.
+  if v_on < v_today - 7 or v_on > v_today + 7 then
+    raise exception 'That date is out of range: routines can only be generated within a week of today.'
+      using errcode = '22023';
+  end if;
+
+  if extract(isodow from v_on) = 7 then
+    return 0;
+  end if;
+
+  for v_routine in select * from public.task_routines where active
+  loop
+    v_period := case v_routine.cadence
+                  when 'weekly'  then date_trunc('week', v_on)::date
+                  when 'monthly' then date_trunc('month', v_on)::date
+                  else v_on
+                end;
+    v_horizon := case v_routine.cadence
+                   when 'weekly'  then 'week'::public.task_horizon
+                   when 'monthly' then 'month'::public.task_horizon
+                   else 'day'::public.task_horizon
+                 end;
+
+    v_due := public.org_timestamp(v_on, v_routine.due_time);
+
+    begin
+      insert into public.tasks
+        (title, description, task_type, assigned_to, created_by, due_date, checklist,
+         sop, estimated_minutes, category_id, horizon, routine_id, routine_on)
+      values
+        (v_routine.title, 'Recurring work.', v_routine.task_type, v_routine.assigned_to,
+         v_routine.created_by, v_due, v_routine.checklist,
+         v_routine.sop, v_routine.estimated_minutes, v_routine.category_id, v_horizon,
+         v_routine.id, v_period);
+      v_created := v_created + 1;
+    exception
+      when unique_violation then null;
+    end;
+
+    update public.task_routines set last_generated_on = v_on where id = v_routine.id;
+  end loop;
+
+  return v_created;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 4. Checklist changes go through one narrow RPC
+-- ---------------------------------------------------------------------
+-- Ticking a box is the ONE thing an employee may do to a checklist. Because
+-- the whole column was writable, an employee could also rename steps, delete
+-- them, or replace the array with a single pre-ticked item and mark the task
+-- done. This function can only ever flip `done` on an item that already
+-- exists, so the shape is safe by construction.
+
+create or replace function public.set_checklist_item(
+  p_task_id uuid,
+  p_item_id text,
+  p_done    boolean
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_task  public.tasks;
+  v_next  jsonb;
+  v_found boolean := false;
+  v_item  jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Please sign in again.' using errcode = '42501';
+  end if;
+
+  select * into v_task from public.tasks where id = p_task_id;
+  if not found then
+    raise exception 'That work is no longer here.' using errcode = 'P0002';
+  end if;
+
+  if not public.is_admin() and v_task.assigned_to is distinct from auth.uid() then
+    raise exception 'You can only update work assigned to you.' using errcode = '42501';
+  end if;
+
+  v_next := '[]'::jsonb;
+  for v_item in select * from jsonb_array_elements(v_task.checklist)
+  loop
+    if v_item ->> 'id' = p_item_id then
+      v_found := true;
+      v_next := v_next || jsonb_build_array(jsonb_set(v_item, '{done}', to_jsonb(p_done)));
+    else
+      v_next := v_next || jsonb_build_array(v_item);
+    end if;
+  end loop;
+
+  if not v_found then
+    raise exception 'That checklist step is not on this task.' using errcode = 'P0002';
+  end if;
+
+  perform set_config('flowline.checklist', 'on', true);
+  update public.tasks set checklist = v_next where id = p_task_id;
+  perform set_config('flowline.checklist', 'off', true);
+
+  return true;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 5. Protected task columns — deny by default
+-- ---------------------------------------------------------------------
+-- Rewritten as a whitelist. The previous version enumerated forbidden
+-- columns, so every column added later was silently writable by employees
+-- until someone remembered to extend the list. Now anything not explicitly
+-- permitted is refused.
+
+create or replace function public.protect_task_columns()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or public.is_admin() then
+    return new;
+  end if;
+
+  -- Identity and description: owner-only, always.
+  if new.title       is distinct from old.title
+  or new.description is distinct from old.description
+  or new.task_type   is distinct from old.task_type
+  or new.created_by  is distinct from old.created_by
+  or new.sop         is distinct from old.sop
+  or new.category_id is distinct from old.category_id
+  or new.horizon     is distinct from old.horizon
+  or new.call_log_id is distinct from old.call_log_id
+  or new.routine_id  is distinct from old.routine_id
+  or new.routine_on  is distinct from old.routine_on
+  or new.estimated_minutes is distinct from old.estimated_minutes then
+    raise exception 'Only an owner can edit the details of a task.' using errcode = '42501';
+  end if;
+
+  -- Audit columns are written by triggers and functions, never by a client.
+  if new.id                is distinct from old.id
+  or new.created_at        is distinct from old.created_at
+  or new.completed_at      is distinct from old.completed_at
+  or new.status_changed_at is distinct from old.status_changed_at then
+    raise exception 'Only an owner can change audit fields on a task.' using errcode = '42501';
+  end if;
+
+  -- Deadlines move during carry-forward and nowhere else.
+  if (new.due_date          is distinct from old.due_date
+   or new.rollover_count    is distinct from old.rollover_count
+   or new.original_due_date is distinct from old.original_due_date)
+     and coalesce(current_setting('flowline.rollover', true), 'off') <> 'on' then
+    raise exception 'Only an owner can change a deadline.' using errcode = '42501';
+  end if;
+
+  -- Checklists change only through set_checklist_item().
+  if new.checklist is distinct from old.checklist
+     and coalesce(current_setting('flowline.checklist', true), 'off') <> 'on' then
+    raise exception 'Use the checklist control to tick a step; the checklist itself cannot be rewritten.'
+      using errcode = '42501';
+  end if;
+
+  -- Reassignment happens only through handoff_task().
+  if new.assigned_to is distinct from old.assigned_to
+     and coalesce(current_setting('flowline.handoff', true), 'off') <> 'on' then
+    raise exception 'Use the handoff action to pass work to someone else.' using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 6. log_call — bounded, and it cannot assign work to other people
+-- ---------------------------------------------------------------------
+
+create or replace function public.log_call(
+  p_counterparty     text,
+  p_transcript       text,
+  p_summary          text,
+  p_commitments      jsonb,
+  p_intel            jsonb,
+  p_task_id          uuid    default null,
+  p_duration_seconds integer default null,
+  p_assign_to        uuid    default null
+)
+returns public.call_logs
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_call       public.call_logs;
+  v_commitment jsonb;
+  v_updated    jsonb := '[]'::jsonb;
+  v_task_id    uuid;
+  v_owner      uuid;
+  v_due        timestamptz;
+  v_kind       text;
+  v_type       public.task_type;
+  v_count      integer;
+  v_date       date;
+  v_title      text;
+begin
+  if auth.uid() is null then
+    raise exception 'Please sign in again.' using errcode = '42501';
+  end if;
+
+  -- --- Who the follow-up work belongs to ---------------------------
+  -- An employee may only create work for themselves. Letting the caller
+  -- name any profile turned call logging into an "assign work to anyone"
+  -- primitive, including to admins.
+  if p_assign_to is null or p_assign_to = auth.uid() then
+    v_owner := auth.uid();
+  elsif public.is_admin() then
+    v_owner := p_assign_to;
+  else
+    raise exception 'You can only assign follow-up work to yourself.' using errcode = '42501';
+  end if;
+
+  if not exists (select 1 from public.profiles where id = v_owner) then
+    raise exception 'That teammate does not exist.' using errcode = '23503';
+  end if;
+
+  -- --- The task this call is attached to ----------------------------
+  if p_task_id is not null and not public.can_see_task(p_task_id) then
+    raise exception 'That task cannot be found, or you do not have access to it.' using errcode = '42501';
+  end if;
+
+  -- --- Payload limits ------------------------------------------------
+  -- One call must not be able to create unbounded work or store unbounded
+  -- text. These are cheap guards against both accident and abuse.
+  if length(coalesce(p_transcript, '')) > 200000 then
+    raise exception 'That transcript is too long to store.' using errcode = '22001';
+  end if;
+  if length(coalesce(p_summary, '')) > 20000 then
+    raise exception 'That summary is too long to store.' using errcode = '22001';
+  end if;
+  if length(btrim(coalesce(p_counterparty, ''))) = 0 then
+    raise exception 'Say who the call was with.' using errcode = '23514';
+  end if;
+
+  if jsonb_typeof(coalesce(p_commitments, '[]'::jsonb)) <> 'array'
+     or jsonb_typeof(coalesce(p_intel, '[]'::jsonb)) <> 'array' then
+    raise exception 'The call payload is malformed.' using errcode = '22023';
+  end if;
+
+  select jsonb_array_length(coalesce(p_commitments, '[]'::jsonb)) into v_count;
+  if v_count > 20 then
+    raise exception 'Too many follow-ups in one call (limit 20, got %).', v_count using errcode = '22023';
+  end if;
+  if jsonb_array_length(coalesce(p_intel, '[]'::jsonb)) > 20 then
+    raise exception 'Too many notes in one call (limit 20).' using errcode = '22023';
+  end if;
+
+  perform set_config('flowline.call', 'on', true);
+
+  insert into public.call_logs
+    (task_id, counterparty, recorded_by, duration_seconds, transcript, summary, commitments, intel)
+  values
+    (p_task_id, btrim(p_counterparty), auth.uid(),
+     greatest(0, coalesce(p_duration_seconds, 0)), coalesce(p_transcript, ''),
+     coalesce(p_summary, ''), coalesce(p_commitments, '[]'::jsonb), coalesce(p_intel, '[]'::jsonb))
+  returning * into v_call;
+
+  for v_commitment in select * from jsonb_array_elements(coalesce(p_commitments, '[]'::jsonb))
+  loop
+    v_task_id := null;
+    v_title := btrim(coalesce(v_commitment ->> 'title', ''));
+
+    if length(v_title) = 0 then
+      raise exception 'Every follow-up needs a title.' using errcode = '23514';
+    end if;
+    if length(v_title) > 200 then
+      raise exception 'That follow-up title is too long.' using errcode = '22001';
+    end if;
+
+    if coalesce(v_commitment ->> 'due_date', '') <> '' then
+      begin
+        v_date := (v_commitment ->> 'due_date')::date;
+      exception when others then
+        raise exception 'A follow-up has an unreadable date.' using errcode = '22007';
+      end;
+
+      -- Two things to stop: backdating a commitment into an already-closed
+      -- reporting period, and absurd far-future values from a bad model
+      -- response. Yesterday allows for a call logged just after midnight.
+      -- The upper bound is deliberately generous — this is a sanity check,
+      -- not a business rule about how far ahead people may plan.
+      if v_date < public.org_today() - 1 or v_date > public.org_today() + 1825 then
+        raise exception 'A follow-up date is out of range (%).', v_date using errcode = '22023';
+      end if;
+
+      v_due := public.org_timestamp(v_date, coalesce(nullif(v_commitment ->> 'due_time', ''), '11:00'));
+
+      v_kind := coalesce(v_commitment ->> 'kind', 'other');
+      v_type := case v_kind
+                  when 'meeting'  then 'meeting'
+                  when 'visit'    then 'meeting'
+                  when 'order'    then 'order'
+                  when 'payment'  then 'call'
+                  when 'callback' then 'call'
+                  when 'delivery' then 'long'
+                  else 'general'
+                end::public.task_type;
+
+      insert into public.tasks
+        (title, description, task_type, assigned_to, created_by, due_date, call_log_id)
+      values
+        (v_title,
+         'From the call with ' || v_call.counterparty || '. They said: ' ||
+           left(coalesce(v_commitment ->> 'quote', ''), 500),
+         v_type, v_owner, auth.uid(), v_due, v_call.id)
+      returning id into v_task_id;
+    end if;
+
+    v_updated := v_updated || jsonb_build_array(
+      v_commitment || jsonb_build_object('task_id', to_jsonb(v_task_id))
+    );
+  end loop;
+
+  update public.call_logs set commitments = v_updated where id = v_call.id returning * into v_call;
+
+  if p_task_id is not null and coalesce(btrim(p_summary), '') <> '' then
+    insert into public.activity_logs (task_id, user_id, content)
+    values (p_task_id, auth.uid(), p_summary);
+  end if;
+
+  perform set_config('flowline.call', 'off', true);
+  return v_call;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 7. call_logs may only be written through log_call()
+-- ---------------------------------------------------------------------
+-- A direct insert bypassed every limit above: unbounded transcript, no
+-- counterparty, forged recorded_by. The privilege is withdrawn entirely;
+-- log_call() is SECURITY DEFINER so it still writes.
+
+drop policy if exists calls_insert on public.call_logs;
+create policy calls_insert on public.call_logs
+  for insert to authenticated
+  with check (coalesce(current_setting('flowline.call', true), 'off') = 'on');
+
+drop policy if exists calls_update_own on public.call_logs;
+create policy calls_update_own on public.call_logs
+  for update to authenticated
+  using (public.is_admin() or coalesce(current_setting('flowline.call', true), 'off') = 'on')
+  with check (public.is_admin() or coalesce(current_setting('flowline.call', true), 'off') = 'on');
+
+revoke insert on public.call_logs from authenticated;
+
+-- ---------------------------------------------------------------------
+-- 8. Grants
+-- ---------------------------------------------------------------------
+
+grant execute on function public.require_admin(text) to authenticated;
+grant execute on function public.set_checklist_item(uuid, text, boolean) to authenticated;
+grant execute on function public.roll_over_unfinished(date) to authenticated;
+grant execute on function public.generate_routine_tasks(date) to authenticated;
+
+
+-- =====================================================================
+-- 0011_task_events_and_safeguards.sql
+-- =====================================================================
+-- 0011_task_events_and_safeguards
+--
+-- Three things, all of which have to live in the database:
+--
+--   1. An append-only history of what actually happened to each task, so a
+--      past report can be rebuilt from events rather than inferred from the
+--      task's present state.
+--   2. Completion safeguards, so "done" means the work was actually done.
+--   3. Blocked safeguards, so "blocked" carries a reason, an owner and a
+--      timestamp instead of being an unexplained flag.
+
+-- ---------------------------------------------------------------------
+-- 1. Blocked context
+-- ---------------------------------------------------------------------
+
+alter table public.tasks
+  add column if not exists blocked_reason text,
+  add column if not exists blocked_by uuid references public.profiles (id) on delete set null,
+  add column if not exists blocked_at timestamptz;
+
+-- Backfill anything already flagged before this rule existed, so the check
+-- below can be enforced without rejecting legitimate historical rows.
+update public.tasks
+   set blocked_reason = coalesce(blocked_reason, 'Reason not recorded (blocked before reasons were required).'),
+       blocked_at     = coalesce(blocked_at, status_changed_at)
+ where is_blocked and blocked_reason is null;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'tasks_blocked_needs_reason') then
+    alter table public.tasks
+      add constraint tasks_blocked_needs_reason
+      check (not is_blocked or length(btrim(coalesce(blocked_reason, ''))) >= 10);
+  end if;
+end
+$$;
+
+-- ---------------------------------------------------------------------
+-- 2. Append-only history
+-- ---------------------------------------------------------------------
+-- Historical labels are denormalised on purpose. A report from March must
+-- still read correctly after the task is renamed, reassigned, or deleted and
+-- after the person who did the work has left.
+
+create table if not exists public.task_events (
+  id              bigserial primary key,
+  task_id         uuid not null,
+  event_type      text not null,
+  from_status     public.task_status,
+  to_status       public.task_status,
+  is_blocked      boolean,
+  blocked_reason  text,
+  actor_id        uuid,
+  actor_name      text,
+  source          text not null default 'api',
+  checklist_done  integer,
+  checklist_total integer,
+  task_title      text,
+  assignee_id     uuid,
+  assignee_name   text,
+  due_date        timestamptz,
+  occurred_at     timestamptz not null default now(),
+  occurred_on     date not null default public.org_today(),
+  meta            jsonb not null default '{}'::jsonb,
+  constraint task_events_type_known check (
+    event_type in ('created','status_changed','completed','reopened','blocked','unblocked',
+                   'handoff','rolled_over','checklist_changed','corrected')
+  ),
+  constraint task_events_source_known check (
+    source in ('details','kanban','api','rollover','routine','call','admin','system')
+  )
+);
+
+create index if not exists task_events_task_idx on public.task_events (task_id, occurred_at);
+create index if not exists task_events_day_idx  on public.task_events (occurred_on);
+create index if not exists task_events_actor_idx on public.task_events (actor_id);
+
+-- ---------------------------------------------------------------------
+-- 3. Immutability
+-- ---------------------------------------------------------------------
+-- Nobody updates or deletes history — not employees, not admins, not the
+-- service role through PostgREST. A mistake is corrected by appending a
+-- 'corrected' event, which leaves the original visible.
+
+create or replace function public.task_events_are_immutable()
+returns trigger
+language plpgsql
+as $$
+begin
+  raise exception 'Task history cannot be % — append a correcting event instead.',
+    case tg_op when 'UPDATE' then 'edited' else 'deleted' end
+    using errcode = '42501';
+end;
+$$;
+
+drop trigger if exists task_events_no_update on public.task_events;
+create trigger task_events_no_update
+  before update on public.task_events
+  for each row execute function public.task_events_are_immutable();
+
+drop trigger if exists task_events_no_delete on public.task_events;
+create trigger task_events_no_delete
+  before delete on public.task_events
+  for each row execute function public.task_events_are_immutable();
+
+alter table public.task_events enable row level security;
+
+drop policy if exists task_events_select on public.task_events;
+create policy task_events_select on public.task_events
+  for select to authenticated
+  using (public.is_admin() or actor_id = auth.uid() or assignee_id = auth.uid());
+
+-- No insert policy: only SECURITY DEFINER triggers write here.
+revoke insert, update, delete on public.task_events from authenticated;
+grant select on public.task_events to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 4. Completion and blocking safeguards
+-- ---------------------------------------------------------------------
+-- Enforced on the table, so the Kanban drag, the native stage <select>, the
+-- details sheet and a raw PostgREST PATCH all obey the same rule.
+--
+-- Documented decision: a task with NO checklist may be completed freely.
+-- Requiring a checklist on every task would push people to add a single
+-- token step, which is worse than trusting the simple case.
+
+create or replace function public.enforce_task_completion()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_total integer;
+  v_done  integer;
+  v_has_evidence boolean;
+begin
+  if new.status <> 'done' or old.status = 'done' then
+    return new;
+  end if;
+
+  select count(*) filter (where true),
+         count(*) filter (where coalesce((c ->> 'done')::boolean, false))
+    into v_total, v_done
+    from jsonb_array_elements(coalesce(new.checklist, '[]'::jsonb)) as c;
+
+  if v_total > 0 and v_done < v_total then
+    raise exception 'Finish the checklist first — % of % steps are still open.', v_total - v_done, v_total
+      using errcode = '23514';
+  end if;
+
+  -- A call is only "done" when there is something to show for it: either a
+  -- recorded call, or a written outcome. Otherwise the evening report counts
+  -- calls as completed that nobody can account for.
+  if new.task_type = 'call' then
+    select exists (select 1 from public.call_logs where task_id = new.id)
+        or exists (select 1 from public.activity_logs where task_id = new.id)
+        or new.call_log_id is not null
+      into v_has_evidence;
+
+    if not v_has_evidence then
+      raise exception 'Record what was discussed before closing a call.' using errcode = '23514';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists tasks_enforce_completion on public.tasks;
+create trigger tasks_enforce_completion
+  before update on public.tasks
+  for each row execute function public.enforce_task_completion();
+
+-- Blocking stamps who and when, and clears cleanly on unblock.
+create or replace function public.stamp_blocked_state()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'UPDATE' and new.is_blocked is distinct from old.is_blocked then
+    if new.is_blocked then
+      new.blocked_by := coalesce(auth.uid(), new.blocked_by);
+      new.blocked_at := now();
+    else
+      new.blocked_reason := null;
+      new.blocked_by := null;
+      new.blocked_at := null;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists tasks_stamp_blocked on public.tasks;
+create trigger tasks_stamp_blocked
+  before update on public.tasks
+  for each row execute function public.stamp_blocked_state();
+
+-- ---------------------------------------------------------------------
+-- 5. Event recording
+-- ---------------------------------------------------------------------
+-- Attribution is auth.uid() — the person who actually made the change — not
+-- the assignee. Those differ whenever an admin closes someone else's work,
+-- and the report was previously crediting the wrong person.
+
+create or replace function public.record_task_event()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_total integer;
+  v_done  integer;
+  v_actor uuid := auth.uid();
+  v_source text := coalesce(nullif(current_setting('flowline.source', true), ''), 'api');
+  v_type  text;
+begin
+  select count(*) filter (where true),
+         count(*) filter (where coalesce((c ->> 'done')::boolean, false))
+    into v_total, v_done
+    from jsonb_array_elements(coalesce(new.checklist, '[]'::jsonb)) as c;
+
+  if tg_op = 'INSERT' then
+    v_type := 'created';
+  elsif coalesce(current_setting('flowline.rollover', true), 'off') = 'on'
+        and new.due_date is distinct from old.due_date then
+    v_type := 'rolled_over';
+    v_source := 'rollover';
+  elsif new.is_blocked is distinct from old.is_blocked then
+    v_type := case when new.is_blocked then 'blocked' else 'unblocked' end;
+  elsif new.status is distinct from old.status then
+    v_type := case
+                when new.status = 'done' then 'completed'
+                when old.status = 'done' then 'reopened'
+                else 'status_changed'
+              end;
+  elsif new.assigned_to is distinct from old.assigned_to then
+    v_type := 'handoff';
+  elsif new.checklist is distinct from old.checklist then
+    v_type := 'checklist_changed';
+  else
+    return new;
+  end if;
+
+  insert into public.task_events (
+    task_id, event_type, from_status, to_status, is_blocked, blocked_reason,
+    actor_id, actor_name, source, checklist_done, checklist_total,
+    task_title, assignee_id, assignee_name, due_date
+  )
+  values (
+    new.id, v_type,
+    case when tg_op = 'UPDATE' then old.status end, new.status,
+    new.is_blocked, new.blocked_reason,
+    v_actor,
+    (select full_name from public.profiles where id = v_actor),
+    v_source, v_done, v_total,
+    new.title, new.assigned_to,
+    (select full_name from public.profiles where id = new.assigned_to),
+    new.due_date
+  );
+
+  return new;
+end;
+$$;
+
+drop trigger if exists tasks_record_event on public.tasks;
+create trigger tasks_record_event
+  after insert or update on public.tasks
+  for each row execute function public.record_task_event();
+
+-- ---------------------------------------------------------------------
+-- 6. Narrow RPCs
+-- ---------------------------------------------------------------------
+-- These carry the UI surface into the event log, so a report can say the
+-- change came from the Kanban board rather than "api".
+
+create or replace function public.set_task_status(
+  p_task_id uuid,
+  p_status  public.task_status,
+  p_source  text default 'details'
+)
+returns public.tasks
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_task public.tasks;
+begin
+  if auth.uid() is null then
+    raise exception 'Please sign in again.' using errcode = '42501';
+  end if;
+  if p_source not in ('details','kanban','api','admin') then
+    raise exception 'Unknown source.' using errcode = '22023';
+  end if;
+
+  select * into v_task from public.tasks where id = p_task_id;
+  if not found then
+    raise exception 'That work is no longer here.' using errcode = 'P0002';
+  end if;
+  if not public.is_admin() and v_task.assigned_to is distinct from auth.uid() then
+    raise exception 'You can only update work assigned to you.' using errcode = '42501';
+  end if;
+
+  perform set_config('flowline.source', p_source, true);
+  update public.tasks set status = p_status where id = p_task_id returning * into v_task;
+  perform set_config('flowline.source', '', true);
+  return v_task;
+end;
+$$;
+
+create or replace function public.set_task_blocked(
+  p_task_id uuid,
+  p_blocked boolean,
+  p_reason  text default null,
+  p_source  text default 'details'
+)
+returns public.tasks
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_task public.tasks;
+begin
+  if auth.uid() is null then
+    raise exception 'Please sign in again.' using errcode = '42501';
+  end if;
+
+  select * into v_task from public.tasks where id = p_task_id;
+  if not found then
+    raise exception 'That work is no longer here.' using errcode = 'P0002';
+  end if;
+  if not public.is_admin() and v_task.assigned_to is distinct from auth.uid() then
+    raise exception 'You can only update work assigned to you.' using errcode = '42501';
+  end if;
+
+  if p_blocked and length(btrim(coalesce(p_reason, ''))) < 10 then
+    raise exception 'Say what is blocking this, in at least 10 characters.' using errcode = '23514';
+  end if;
+
+  perform set_config('flowline.source', p_source, true);
+  update public.tasks
+     set is_blocked = p_blocked,
+         blocked_reason = case when p_blocked then btrim(p_reason) else null end
+   where id = p_task_id
+  returning * into v_task;
+  perform set_config('flowline.source', '', true);
+  return v_task;
+end;
+$$;
+
+-- The blocked flag and its reason must move together, so direct writes are
+-- refused for employees; status stays directly writable because the
+-- completion trigger already validates it on every path.
+create or replace function public.protect_blocked_columns()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or public.is_admin() then
+    return new;
+  end if;
+  if (new.blocked_reason is distinct from old.blocked_reason
+   or new.blocked_by     is distinct from old.blocked_by
+   or new.blocked_at     is distinct from old.blocked_at)
+     and coalesce(current_setting('flowline.source', true), '') = '' then
+    raise exception 'Use the blocked control so the reason is recorded.' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists tasks_protect_blocked on public.tasks;
+create trigger tasks_protect_blocked
+  before update on public.tasks
+  for each row execute function public.protect_blocked_columns();
+
+grant execute on function public.set_task_status(uuid, public.task_status, text) to authenticated;
+grant execute on function public.set_task_blocked(uuid, boolean, text, text)     to authenticated;
+
+alter table public.task_events replica identity full;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'task_events'
+  ) then
+    alter publication supabase_realtime add table public.task_events;
   end if;
 end
 $$;

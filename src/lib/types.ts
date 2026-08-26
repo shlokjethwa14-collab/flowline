@@ -48,6 +48,43 @@ export interface CallIntel {
   quote: string
 }
 
+/**
+ * One entry in the append-only task history. Historical labels (title,
+ * assignee name) are copied in on purpose: a report from March must still
+ * read correctly after the task is renamed or the person has left.
+ */
+export interface TaskEvent {
+  id: string
+  task_id: string
+  event_type:
+    | 'created'
+    | 'status_changed'
+    | 'completed'
+    | 'reopened'
+    | 'blocked'
+    | 'unblocked'
+    | 'handoff'
+    | 'rolled_over'
+    | 'checklist_changed'
+    | 'corrected'
+  from_status: TaskStatus | null
+  to_status: TaskStatus | null
+  is_blocked: boolean | null
+  blocked_reason: string | null
+  /** Who actually made the change — not necessarily the assignee. */
+  actor_id: string | null
+  actor_name: string | null
+  source: 'details' | 'kanban' | 'api' | 'rollover' | 'routine' | 'call' | 'admin' | 'system'
+  checklist_done: number | null
+  checklist_total: number | null
+  task_title: string | null
+  assignee_id: string | null
+  assignee_name: string | null
+  due_date: string | null
+  occurred_at: string
+  occurred_on: string
+}
+
 export interface CallLog {
   id: string
   /** The task this call belongs to, when it was made from one. */
@@ -114,6 +151,10 @@ export interface Task {
   created_by: string | null
   due_date: string | null
   is_blocked: boolean
+  /** Required whenever is_blocked is true; the database enforces it. */
+  blocked_reason: string | null
+  blocked_by: string | null
+  blocked_at: string | null
   status_changed_at: string
   completed_at: string | null
   task_type: TaskType

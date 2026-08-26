@@ -13,6 +13,7 @@ import type {
   ChecklistItem,
   Horizon,
   Role,
+  TaskEvent,
   TaskStatus,
   TaskType,
 } from '@/lib/types'
@@ -59,6 +60,9 @@ export interface Database {
           created_by: string | null
           due_date: string | null
           is_blocked: boolean
+          blocked_reason: string | null
+          blocked_by: string | null
+          blocked_at: string | null
           status_changed_at: string
           completed_at: string | null
           task_type: TaskType
@@ -83,6 +87,9 @@ export interface Database {
           created_by?: string | null
           due_date?: string | null
           is_blocked?: boolean
+          blocked_reason?: string | null
+          blocked_by?: string | null
+          blocked_at?: string | null
           status_changed_at?: string
           completed_at?: string | null
           task_type?: TaskType
@@ -107,6 +114,9 @@ export interface Database {
           created_by?: string | null
           due_date?: string | null
           is_blocked?: boolean
+          blocked_reason?: string | null
+          blocked_by?: string | null
+          blocked_at?: string | null
           status_changed_at?: string
           completed_at?: string | null
           task_type?: TaskType
@@ -226,6 +236,40 @@ export interface Database {
         }
         Relationships: []
       }
+      task_events: {
+        Row: {
+          id: number
+          task_id: string
+          event_type: TaskEvent['event_type']
+          from_status: TaskStatus | null
+          to_status: TaskStatus | null
+          is_blocked: boolean | null
+          blocked_reason: string | null
+          actor_id: string | null
+          actor_name: string | null
+          source: TaskEvent['source']
+          checklist_done: number | null
+          checklist_total: number | null
+          task_title: string | null
+          assignee_id: string | null
+          assignee_name: string | null
+          due_date: string | null
+          occurred_at: string
+          occurred_on: string
+          meta: Json
+        }
+        /* Append-only: rows are written by SECURITY DEFINER triggers, never
+           by a client, so Insert/Update are intentionally never-typed. */
+        Insert: never
+        Update: never
+        Relationships: []
+      }
+      org_settings: {
+        Row: { id: boolean; timezone: string; working_days: number[]; created_at: string }
+        Insert: { id?: boolean; timezone?: string; working_days?: number[]; created_at?: string }
+        Update: { id?: boolean; timezone?: string; working_days?: number[]; created_at?: string }
+        Relationships: []
+      }
       call_logs: {
         Row: {
           id: string
@@ -338,6 +382,26 @@ export interface Database {
       is_admin: {
         Args: Record<string, never>
         Returns: boolean
+      }
+      set_task_status: {
+        Args: { p_task_id: string; p_status: TaskStatus; p_source?: string }
+        Returns: Database['public']['Tables']['tasks']['Row']
+      }
+      set_task_blocked: {
+        Args: { p_task_id: string; p_blocked: boolean; p_reason?: string; p_source?: string }
+        Returns: Database['public']['Tables']['tasks']['Row']
+      }
+      set_checklist_item: {
+        Args: { p_task_id: string; p_item_id: string; p_done: boolean }
+        Returns: boolean
+      }
+      org_today: {
+        Args: Record<string, never>
+        Returns: string
+      }
+      org_timezone: {
+        Args: Record<string, never>
+        Returns: string
       }
     }
     Enums: {

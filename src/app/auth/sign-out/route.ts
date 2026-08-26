@@ -4,7 +4,7 @@ import { getServerClient } from '@/lib/supabase/server'
 export const dynamic = 'force-dynamic'
 
 async function signOut(request: NextRequest) {
-  const supabase = getServerClient()
+  const supabase = await getServerClient()
   if (supabase) {
     await supabase.auth.signOut()
   }
