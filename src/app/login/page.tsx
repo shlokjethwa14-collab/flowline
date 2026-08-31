@@ -3,6 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CheckCircle2, Loader2, Mail, ShieldCheck, UserRound, Waves } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
+import Link from 'next/link'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -203,6 +204,12 @@ export default function LoginPage() {
                 <p className="mt-4 text-[11.5px] leading-relaxed text-ink-faint">
                   What you can see and do is decided by your profile in the company database — not by anything sent from
                   this page.
+                </p>
+                <p className="mt-3 text-[12.5px] text-ink-muted">
+                  New here?{' '}
+                  <Link href="/welcome" className="font-medium text-primary underline-offset-4 hover:underline">
+                    See what Flowline does
+                  </Link>
                 </p>
               </>
             )}

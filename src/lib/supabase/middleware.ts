@@ -4,7 +4,7 @@ import type { Database } from './database.types'
 import { hasSupabaseConfig, SUPABASE_ANON_KEY, SUPABASE_URL } from './env'
 
 /** Routes that never require a session. */
-const PUBLIC_PATHS = ['/login', '/auth/callback', '/auth/sign-out']
+const PUBLIC_PATHS = ['/welcome', '/login', '/auth/callback', '/auth/sign-out']
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
@@ -18,6 +18,8 @@ function isPublic(pathname: string): boolean {
 export async function updateSession(request: NextRequest): Promise<NextResponse> {
   if (!hasSupabaseConfig()) {
     // Demo mode: /login has nothing to do, so send people to the app.
+    // /welcome is left alone — the landing story is public either way, and
+    // it is the only way to see it when there is no Supabase project.
     if (request.nextUrl.pathname === '/login') {
       const url = request.nextUrl.clone()
       url.pathname = '/'

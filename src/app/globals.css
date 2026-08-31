@@ -668,6 +668,20 @@
     perspective-origin: 50% 16%;
   }
 
+  /*
+   * What the landing story shows when WebGL is off the table — a phone, a
+   * low-core machine, or a reduced-motion preference. It is a real design,
+   * not a grey box: most visitors on mobile will only ever see this, so it
+   * has to look like the intended background rather than a failure state.
+   */
+  .story-field-fallback {
+    background:
+      radial-gradient(60% 44% at 22% 18%, hsl(250 84% 62% / 0.24), transparent 68%),
+      radial-gradient(52% 40% at 82% 32%, hsl(200 88% 58% / 0.2), transparent 66%),
+      radial-gradient(64% 48% at 50% 88%, hsl(165 70% 48% / 0.18), transparent 70%),
+      hsl(var(--background));
+  }
+
   .org-line {
     background: linear-gradient(180deg, hsl(var(--z-400) / 0.6), hsl(var(--z-400) / 0.24));
   }

@@ -7,8 +7,9 @@ import { homeFor } from '@/components/shell/nav-items'
 import { useCurrentUser } from '@/hooks/use-flowline'
 
 /**
- * Everyone lands here first and is sent to the right home screen: the owner to
- * Team Flow, everyone else to My Day.
+ * Everyone lands here first and is sent on: signed-in people to the right home
+ * screen (the owner to Team Flow, everyone else to My Day), and anyone else to
+ * the landing story.
  */
 export default function IndexPage() {
   const router = useRouter()
@@ -20,7 +21,10 @@ export default function IndexPage() {
       router.replace(homeFor(profile.role))
       return
     }
-    if (!isDemo) router.replace('/login')
+    // Nobody signed in: the landing story, not the sign-in form. Someone who
+    // has never seen Flowline needs to know what it is before being asked
+    // for an email address.
+    if (!isDemo) router.replace('/welcome')
   }, [isLoading, profile, isDemo, router])
 
   return (
