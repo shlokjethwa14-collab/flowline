@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from 'react'
 import { CallRecorderDialog } from '@/components/calls/call-recorder-dialog'
+import { PageShell } from '@/components/motion/page-shell'
 import { AddPersonDialog } from '@/components/team/add-person-dialog'
 import { AssignWorkDialog } from '@/components/tasks/assign-work-dialog'
 import { TaskDetailsSheet } from '@/components/tasks/task-details-sheet'
@@ -46,7 +47,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="px-3 pb-16 pt-5 sm:px-4 lg:px-6">
         {/* Wide enough for the report and the board to breathe on a large
             display; the cap only stops line lengths running away past 2K. */}
-        <div className="mx-auto w-full max-w-[1680px]">{children}</div>
+        <div className="mx-auto w-full max-w-[1680px]">
+          <PageShell>{children}</PageShell>
+        </div>
       </main>
 
       {/* One instance of each overlay, shared by every screen. */}

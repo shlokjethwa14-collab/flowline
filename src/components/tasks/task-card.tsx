@@ -12,6 +12,7 @@ import { resolveTaskMeta, TASK_STATUSES } from '@/lib/task-meta'
 import type { Task, TaskStatus } from '@/lib/types'
 import { checklistProgress, cn, dueState, humanMinutes } from '@/lib/utils'
 import { useUIStore } from '@/store/ui'
+import { Tilt } from '@/components/motion/tilt'
 import { BlockedBadge, DueBadge, RoutineBadge, StatusChip } from './task-badges'
 
 interface TaskCardProps {
@@ -64,18 +65,17 @@ export function TaskCard({
         : null
 
   return (
-    <article
-      ref={specRef}
-      onPointerMove={onPointerMove}
-      onPointerLeave={onPointerLeave}
-      className={cn(
-        'glass glass-quiet spec group relative overflow-hidden rounded-3xl p-4',
-        'transition-[transform,box-shadow] duration-200 ease-apple-snap',
-        'hover:-translate-y-[2px] focus-within:-translate-y-[2px]',
-        done && 'opacity-[0.86]',
-        className,
-      )}
-    >
+    <Tilt degrees={4} liftPx={14} className="h-full">
+      <article
+        ref={specRef}
+        onPointerMove={onPointerMove}
+        onPointerLeave={onPointerLeave}
+        className={cn(
+          'glass glass-quiet spec group relative h-full overflow-hidden rounded-3xl p-4',
+          done && 'opacity-[0.86]',
+          className,
+        )}
+      >
       {railTone && (
         <span
           aria-hidden="true"
@@ -219,9 +219,10 @@ export function TaskCard({
           ) : (
             <StatusChip status={task.status} />
           )}
+          </div>
         </div>
-      </div>
-    </article>
+      </article>
+    </Tilt>
   )
 }
 

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { KanbanBoard } from '@/components/tasks/kanban-board'
+import { StaggerGrid, StaggerItem } from '@/components/motion/stagger'
 import { TaskCard, TaskCardSkeleton } from '@/components/tasks/task-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -248,11 +249,19 @@ export default function AllWorkPage() {
           }
         />
       ) : (
-        <div className="grid gap-3 stagger md:grid-cols-2 xl:grid-cols-3">
+        <StaggerGrid
+          // Keyed on the filter signature so a new result set replays the
+          // stagger — it is the clearest signal that the list actually
+          // changed when only a couple of cards differ.
+          key={listSorted.length}
+          className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+        >
           {listSorted.map((task) => (
-            <TaskCard key={task.id} task={task} showAssignee={isAdmin} />
+            <StaggerItem key={task.id}>
+              <TaskCard task={task} showAssignee={isAdmin} />
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerGrid>
       )}
     </div>
   )

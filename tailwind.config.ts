@@ -82,6 +82,17 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        /*
+         * Text ramp. These follow the theme, unlike the zinc-* scale, which
+         * is where every white-on-white bug in this app has come from. New
+         * copy should reach for `text-ink` / `text-ink-muted` / `text-ink-faint`
+         * and never a fixed grey.
+         */
+        ink: {
+          DEFAULT: 'var(--text-primary)',
+          muted: 'var(--text-secondary)',
+          faint: 'var(--text-tertiary)',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

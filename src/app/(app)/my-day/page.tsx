@@ -6,6 +6,7 @@ import { useMemo } from 'react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatCard, StatCardSkeleton } from '@/components/shared/stat-card'
+import { StaggerGrid, StaggerItem } from '@/components/motion/stagger'
 import { TaskCard, TaskCardSkeleton } from '@/components/tasks/task-card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -55,11 +56,13 @@ function PeriodSection({ horizon, tasks }: { horizon: 'week' | 'month'; tasks: T
           />
         </div>
       </div>
-      <div className="grid gap-3 stagger md:grid-cols-2 xl:grid-cols-3">
+      <StaggerGrid className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} showAssignee={false} />
+          <StaggerItem key={task.id}>
+            <TaskCard task={task} showAssignee={false} />
+          </StaggerItem>
         ))}
-      </div>
+      </StaggerGrid>
     </section>
   )
 }
@@ -161,37 +164,45 @@ export default function MyDayPage() {
           ))}
         </div>
       ) : stats.total === 0 ? null : (
-        <div className="grid gap-3 stagger sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            label="Day progress"
-            value={`${stats.percent}%`}
-            icon={CheckCircle2}
-            tone={everythingDone ? 'success' : 'primary'}
-            percent={stats.percent}
-            hint={`${stats.done} of ${stats.total} finished`}
-          />
-          <StatCard
-            label="Checklist steps"
-            value={`${stats.checklistTotals.done}/${stats.checklistTotals.total}`}
-            icon={ListChecks}
-            tone="neutral"
-            hint="Small steps ticked off today"
-          />
-          <StatCard
-            label="Overdue"
-            value={stats.overdue}
-            icon={Sunrise}
-            tone={stats.overdue > 0 ? 'warning' : 'neutral'}
-            hint={stats.overdue > 0 ? 'Left over from earlier — clear these first' : 'Nothing left over'}
-          />
-          <StatCard
-            label="Blocked"
-            value={stats.blocked}
-            icon={CircleAlert}
-            tone={stats.blocked > 0 ? 'danger' : 'neutral'}
-            hint={stats.blocked > 0 ? 'Waiting on someone else' : 'Nothing is stuck'}
-          />
-        </div>
+        <StaggerGrid className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StaggerItem>
+            <StatCard
+              label="Day progress"
+              value={`${stats.percent}%`}
+              icon={CheckCircle2}
+              tone={everythingDone ? 'success' : 'primary'}
+              percent={stats.percent}
+              hint={`${stats.done} of ${stats.total} finished`}
+            />
+          </StaggerItem>
+          <StaggerItem>
+            <StatCard
+              label="Checklist steps"
+              value={`${stats.checklistTotals.done}/${stats.checklistTotals.total}`}
+              icon={ListChecks}
+              tone="neutral"
+              hint="Small steps ticked off today"
+            />
+          </StaggerItem>
+          <StaggerItem>
+            <StatCard
+              label="Overdue"
+              value={stats.overdue}
+              icon={Sunrise}
+              tone={stats.overdue > 0 ? 'warning' : 'neutral'}
+              hint={stats.overdue > 0 ? 'Left over from earlier — clear these first' : 'Nothing left over'}
+            />
+          </StaggerItem>
+          <StaggerItem>
+            <StatCard
+              label="Blocked"
+              value={stats.blocked}
+              icon={CircleAlert}
+              tone={stats.blocked > 0 ? 'danger' : 'neutral'}
+              hint={stats.blocked > 0 ? 'Waiting on someone else' : 'Nothing is stuck'}
+            />
+          </StaggerItem>
+        </StaggerGrid>
       )}
 
       {loading ? (
@@ -253,11 +264,13 @@ export default function MyDayPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 stagger md:grid-cols-2 xl:grid-cols-3">
+                <StaggerGrid className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {group.tasks.map((task) => (
-                    <TaskCard key={task.id} task={task} showAssignee={false} />
+                    <StaggerItem key={task.id}>
+                      <TaskCard task={task} showAssignee={false} />
+                    </StaggerItem>
                   ))}
-                </div>
+                </StaggerGrid>
               </section>
             )
           })}
@@ -290,11 +303,13 @@ export default function MyDayPage() {
               Open calendar
             </Link>
           </div>
-          <div className="grid gap-3 stagger md:grid-cols-2 xl:grid-cols-3">
+          <StaggerGrid className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {upcoming.map((task) => (
-              <TaskCard key={task.id} task={task} showAssignee={false} />
+              <StaggerItem key={task.id}>
+                <TaskCard task={task} showAssignee={false} />
+              </StaggerItem>
             ))}
-          </div>
+          </StaggerGrid>
         </section>
       )}
     </div>
