@@ -138,42 +138,107 @@ for all deploy contexts*:
 
 Then trigger a deploy. It should finish in two or three minutes.
 
-### 2.3 Add the domain
+### 2.3 Add the domain — `ckltask.com` at GoDaddy
 
-1. **Domain management → Add a domain** → `ckltask.com`.
-2. Netlify will say the domain is registered elsewhere. Choose to add it
-   anyway; it then shows the DNS records to create.
+The domain is registered at GoDaddy and currently parked: its nameservers are
+`ns01.domaincontrol.com` / `ns02.domaincontrol.com`, the apex points at
+GoDaddy's parking addresses, and there are **no MX records**, so no email is
+at risk in what follows.
 
-At your registrar's DNS panel, for `ckltask.com`:
+There are two ways to connect it. They are not equivalent.
+
+#### Option A — Netlify DNS (recommended here)
+
+Hand GoDaddy's nameservers over to Netlify. Netlify then manages every record
+for the domain.
+
+Netlify recommends this for apex domains for a concrete reason: with external
+DNS the apex can only be an `A` record pointing at a single load-balancer IP,
+which cannot use their global CDN routing. GoDaddy does not support
+`ALIAS`/`ANAME` records, so external DNS at the apex has no better option.
+
+The usual argument against delegating — it moves your existing records, and
+mail is the one that hurts — does not apply: there is nothing to move.
+
+1. Netlify: **Domain management → Add a domain** → `ckltask.com` → **Add a
+   domain you already own**.
+2. Choose the Netlify DNS option. Netlify shows four nameservers in the form
+   `dns1.p01.nsone.net`. **They are assigned per domain — use the four your
+   dashboard shows, not any you find in a tutorial.**
+3. GoDaddy: **My Products → ckltask.com → Domain Settings → Nameservers →
+   Change → I'll use my own nameservers**. Replace both `domaincontrol.com`
+   entries with Netlify's four. Save.
+4. GoDaddy will warn that changing nameservers turns off its DNS. That is the
+   intent; accept it.
+
+Delegation typically completes within an hour, occasionally up to 48.
+
+#### Option B — keep GoDaddy DNS
+
+Use this if you later want GoDaddy managing mail or other records and prefer
+one place for them.
+
+GoDaddy: **My Products → ckltask.com → DNS → Manage Zones**.
+
+**Delete first**, or the new records will fight the old ones and the site will
+load intermittently:
+
+- both `A` records on `@` (currently `76.223.105.230` and `13.248.243.5` —
+  GoDaddy's parking addresses)
+- the `CNAME` on `www` (currently pointing at `@`)
+
+Then add:
 
 | Type | Name | Value | TTL |
 | --- | --- | --- | --- |
-| `A` | `@` | `75.2.60.5` | 3600 |
-| `CNAME` | `www` | `<your-site>.netlify.app` | 3600 |
+| `A` | `@` | `75.2.60.5` | 600 |
+| `CNAME` | `www` | `<your-site>.netlify.app` | 600 |
 
-Two things to check while you are there:
+A 600-second TTL rather than the hour GoDaddy defaults to: while you are
+setting this up, a mistake should cost ten minutes to correct, not sixty. Put
+it back to 3600 once the site is confirmed working.
 
-- **Delete any existing `A` or `CNAME` record for `@` or `www`.** A registrar
-  parking page left in place will fight the new records and the site will load
-  intermittently.
-- Confirm the exact `A` record against what Netlify shows you. The address
-  above is Netlify's documented load balancer, but their panel is the
-  authority for your site.
+Also check **Domain Settings → Forwarding** is empty. GoDaddy's domain
+forwarding silently injects its own records and overrides the ones above —
+it is the most common reason a correct-looking GoDaddy zone still serves a
+parking page.
 
-DNS usually propagates in under an hour. Netlify issues the TLS certificate
-automatically once it resolves; until then the site is reachable on its
-`.netlify.app` address.
+Confirm the `A` value against what Netlify's own panel shows you. `75.2.60.5`
+is their documented load balancer, but their dashboard is the authority for
+your site.
 
 ### 2.4 Set the primary domain
 
 Back in **Domain management**, set `ckltask.com` as the primary domain so
-`www` redirects to it rather than serving a duplicate site.
+`www` redirects to it rather than serving a second copy of the site at a
+different address.
+
+Netlify issues the TLS certificate automatically once DNS resolves. Until
+then the site is reachable at its `.netlify.app` address.
 
 ---
 
 ## Part 3 — Checks before you tell anyone the address
 
-Run these in order. Each has caught a real problem.
+Most of this is automated. From the repository:
+
+```bash
+npm run check:domain
+```
+
+It queries a public resolver rather than your machine's, because a local or
+ISP resolver can hold a stale answer for hours — which during a domain move is
+exactly the thing you are trying to see. It reports the nameservers, whether
+the apex still points at GoDaddy's parking addresses, whether HTTPS is
+enforced, whether every security header survived the trip through the host,
+and — the one worth caring about most — whether `/my-day` is being served to a
+signed-out visitor, which would mean the site is running in demo mode with no
+database attached.
+
+Run it after changing DNS, then again once the certificate appears. Expect
+failures until both have happened.
+
+Then do these by hand. Each has caught a real problem.
 
 1. **`https://ckltask.com` loads the landing story** and the padlock is
    present.

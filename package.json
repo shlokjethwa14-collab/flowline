@@ -16,7 +16,10 @@
         "audit": "npm audit --audit-level=high",
         "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run audit",
         "seed": "tsx scripts/seed.ts",
-        "schema:build": "node scripts/build-schema.mjs"
+        "schema:build": "node scripts/build-schema.mjs",
+        "check:domain": "node scripts/check-domain.mjs",
+        "brand:build": "node scripts/generate-brand-assets.mjs",
+        "story:optimise": "node scripts/optimise-story-images.mjs"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.120.0",
