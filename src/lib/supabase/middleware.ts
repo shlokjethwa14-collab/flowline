@@ -15,7 +15,18 @@ function isPublic(pathname: string): boolean {
  * visitors away from the app. In demo mode there is no session to refresh, so
  * every route is allowed through.
  */
-export async function updateSession(request: NextRequest): Promise<NextResponse> {
+export async function updateSession(
+  request: NextRequest,
+  /**
+   * Request headers to forward to the route handlers, carrying the per-request
+   * CSP nonce. Next reads `x-nonce` from here and stamps it onto the script
+   * tags it injects; drop it and the framework's own bootstrap is blocked by
+   * our own policy.
+   */
+  requestHeaders: Headers,
+): Promise<NextResponse> {
+  const forward = { request: { headers: requestHeaders } }
+
   if (!hasSupabaseConfig()) {
     // Demo mode: /login has nothing to do, so send people to the app.
     // /welcome is left alone — the landing story is public either way, and
@@ -25,10 +36,10 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
       url.pathname = '/'
       return NextResponse.redirect(url)
     }
-    return NextResponse.next({ request })
+    return NextResponse.next(forward)
   }
 
-  let response = NextResponse.next({ request })
+  let response = NextResponse.next(forward)
 
   const supabase = createServerClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
     cookies: {
@@ -39,7 +50,7 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
         for (const { name, value } of cookiesToSet) {
           request.cookies.set(name, value)
         }
-        response = NextResponse.next({ request })
+        response = NextResponse.next(forward)
         for (const { name, value, options } of cookiesToSet) {
           response.cookies.set(name, value, options)
         }

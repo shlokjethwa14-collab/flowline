@@ -35,6 +35,22 @@ titles, deadlines or descriptions, or delete anything.
 
 ---
 
+## Deploying it
+
+Flowline runs at **[ckltask.com](https://ckltask.com)** on Netlify's free tier,
+with Postgres and authentication on Supabase's.
+
+**[DEPLOY.md](DEPLOY.md)** is the full procedure: creating the Supabase
+project, running the eleven migrations, creating the first owner account,
+connecting Netlify, the exact DNS records, and the six checks worth running
+before telling anyone the address.
+
+Security headers — including a nonce-based Content Security Policy — are
+applied by the middleware from `src/lib/security-headers.ts`. HSTS and the
+caching rules are set at the edge in `netlify.toml`.
+
+---
+
 ## Running it
 
 You need **Node.js 18.17 or newer** (Node 20+ recommended).

@@ -1,0 +1,63 @@
+#
+# Netlify deployment for ckltask.com
+#
+# The Next.js runtime is detected automatically and handles the server
+# routes, the middleware and image optimisation. Nothing here needs to
+# name it.
+#
+# Security headers live in src/lib/security-headers.ts and are applied by
+# the middleware, because the Content Security Policy needs a per-request
+# nonce that a static config file cannot produce. The two exceptions are
+# below: HSTS, which is domain-wide and effectively irreversible, and the
+# caching rules, which are about assets the middleware never sees.
+#
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  # Match the local toolchain. Netlify's default lags behind, and Next 16
+  # wants a current runtime.
+  NODE_VERSION = "22"
+  # Fail the build on a dependency that cannot resolve, rather than silently
+  # deploying against a different tree than the one that was tested.
+  NPM_FLAGS = "--no-audit --no-fund"
+
+# ---------------------------------------------------------------------------
+# HSTS
+# ---------------------------------------------------------------------------
+# Read this before changing it. Once a browser sees this header it refuses
+# to talk to ckltask.com over plain HTTP for two years, and there is no way
+# to reach those browsers to tell them otherwise. That is the point — it
+# closes the window where a first request over HTTP could be intercepted —
+# but it does mean the domain is committed to HTTPS.
+#
+# `preload` is intentionally omitted. It is a one-way submission to a list
+# baked into browser binaries, and it covers every subdomain forever.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains"
+
+# ---------------------------------------------------------------------------
+# Caching
+# ---------------------------------------------------------------------------
+# Next fingerprints everything under /_next/static, so those URLs can never
+# refer to different bytes later.
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# The story photographs are content-stable but not fingerprinted, so they get
+# a long cache with revalidation rather than immutability.
+[[headers]]
+  for = "/story/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, stale-while-revalidate=86400"
+
+[[headers]]
+  for = "/og.png"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
