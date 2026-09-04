@@ -33,6 +33,9 @@ create table if not exists auth.users (
   id                  uuid primary key default gen_random_uuid(),
   email               text unique,
   raw_user_meta_data  jsonb not null default '{}'::jsonb,
+  -- Supabase stamps this when a magic link or invite is followed. Flowline
+  -- reads it to tell a verified address from an invited-but-unconfirmed one.
+  email_confirmed_at  timestamptz default now(),
   created_at          timestamptz not null default now()
 );
 

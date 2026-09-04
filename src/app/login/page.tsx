@@ -1,22 +1,14 @@
 'use client'
 
-import { zodResolver } from '@hookform/resolvers/zod'
-import { CheckCircle2, Loader2, Mail, ShieldCheck, UserRound, Waves } from 'lucide-react'
+import { CheckCircle2, ShieldCheck, UserRound, Waves } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { toast } from 'sonner'
+import { useEffect } from 'react'
+import { SignInForm } from '@/components/auth/sign-in-form'
 import { GlassHero } from '@/components/three/glass-hero'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { friendlyError } from '@/lib/data/api'
 import { listContainer, listItem, stillVariants } from '@/lib/motion'
-import { getBrowserClient } from '@/lib/supabase/client'
 import { IS_DEMO } from '@/lib/supabase/env'
-import { signInSchema, type SignInValues } from '@/lib/validators'
 
 function RolePoint({
   icon: Icon,
@@ -48,7 +40,6 @@ function RolePoint({
 }
 
 export default function LoginPage() {
-  const [sentTo, setSentTo] = useState<string | null>(null)
   const reduced = useReducedMotion()
   const router = useRouter()
 
@@ -61,34 +52,6 @@ export default function LoginPage() {
     if (IS_DEMO) router.replace('/')
   }, [router])
 
-  const form = useForm<SignInValues>({
-    resolver: zodResolver(signInSchema),
-    defaultValues: { email: '' },
-    mode: 'onChange',
-  })
-
-  const onSubmit = form.handleSubmit(async (values) => {
-    const supabase = getBrowserClient()
-    if (!supabase) {
-      toast.error('Supabase is not configured, so there is nothing to sign in to.')
-      return
-    }
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: values.email.trim(),
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          // Nobody is created by signing in — an admin adds people first.
-          shouldCreateUser: false,
-        },
-      })
-      if (error) throw new Error(error.message)
-      setSentTo(values.email.trim())
-      toast.success('Check your email.', { description: 'We sent you a link that signs you straight in.' })
-    } catch (error) {
-      toast.error(friendlyError(error))
-    }
-  })
 
   const variants = reduced ? stillVariants : listItem
 
@@ -157,74 +120,14 @@ export default function LoginPage() {
         {/* Right: sign in */}
         <motion.section className="order-1 lg:order-2" variants={variants}>
           <div className="glass glass-thick rounded-3xl p-6 sm:p-7">
-            {sentTo ? (
-              <div className="space-y-4 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-500 shadow-[inset_0_1px_0_var(--glass-highlight)]">
-                  <Mail className="h-6 w-6" strokeWidth={1.9} />
-                </div>
-                <div className="space-y-1.5">
-                  <h2 className="text-[18px] font-semibold tracking-[-0.015em] text-ink">Check your email</h2>
-                  <p className="text-[13.5px] leading-relaxed text-ink-muted text-pretty">
-                    We sent a sign-in link to <span className="font-medium text-ink">{sentTo}</span>. Open it on this
-                    device and you are in — no password to remember.
-                  </p>
-                </div>
-                <Button variant="glass" className="w-full" onClick={() => setSentTo(null)}>
-                  Use a different email
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-1.5">
-                  <h2 className="text-[19px] font-semibold tracking-[-0.015em] text-ink">Sign in</h2>
-                  <p className="text-[13.5px] leading-relaxed text-ink-muted">
-                    Enter your work email and we will send you a link. There is no password to remember.
-                  </p>
-                </div>
+            <SignInForm mode="employee" unclaimed={false} />
 
-                <form onSubmit={onSubmit} className="mt-5 space-y-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="email">Work email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      inputMode="email"
-                      autoComplete="email"
-                      autoFocus
-                      placeholder="you@yourcompany.com"
-                      aria-invalid={Boolean(form.formState.errors.email)}
-                      {...form.register('email')}
-                    />
-                    {form.formState.errors.email && (
-                      <p role="alert" className="text-[12px] text-red-500">
-                        {form.formState.errors.email.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className="w-full gap-2"
-                    disabled={form.formState.isSubmitting || !form.formState.isValid}
-                  >
-                    {form.formState.isSubmitting ? <Loader2 className="animate-spin" /> : <Mail />}
-                    Send me a sign-in link
-                  </Button>
-                </form>
-
-                <p className="mt-4 text-[11.5px] leading-relaxed text-ink-faint">
-                  What you can see and do is decided by your profile in the company database — not by anything sent from
-                  this page.
-                </p>
-                <p className="mt-3 text-[12.5px] text-ink-muted">
-                  New here?{' '}
-                  <Link href="/welcome" className="font-medium text-primary underline-offset-4 hover:underline">
-                    See what Flowline does
-                  </Link>
-                </p>
-              </>
-            )}
+            <p className="mt-4 border-t border-[var(--glass-border)] pt-4 text-[12.5px] text-ink-muted">
+              Setting the company up for the first time?{' '}
+              <Link href="/login/owner" className="font-medium text-primary underline-offset-4 hover:underline">
+                Owner sign-in
+              </Link>
+            </p>
           </div>
         </motion.section>
       </motion.div>

@@ -403,6 +403,24 @@ export interface Database {
         Args: Record<string, never>
         Returns: string
       }
+      /** True only while no profile exists — the one-time owner claim gate. */
+      workspace_is_unclaimed: {
+        Args: Record<string, never>
+        Returns: boolean
+      }
+      set_person_role: {
+        Args: { p_user_id: string; p_role: Role }
+        Returns: void
+      }
+      /** Owners may read anyone's; everyone else only their own. */
+      email_for: {
+        Args: { p_user_id: string }
+        Returns: string | null
+      }
+      email_is_verified: {
+        Args: { p_user_id?: string | null }
+        Returns: boolean
+      }
     }
     Enums: {
       user_role: Role
