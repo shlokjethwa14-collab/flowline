@@ -1,8 +1,20 @@
 # Deploying Flowline to ckltask.com
 
-Everything in this document is a step a person has to take in a browser —
-creating accounts, pasting secrets, pointing DNS. The repository is already
-configured for all of it.
+## Current state
+
+| Piece | Status |
+| --- | --- |
+| Domain `ckltask.com` | **Live.** GoDaddy DNS points the apex at GitHub Pages; `www` follows. |
+| Landing page | **Live** at <https://ckltask.com>, served from the `gh-pages` branch. |
+| HTTPS | Issuing. `npm run landing:https` enforces it once GitHub's certificate lands. |
+| Supabase project | **Created and migrated.** `zpurdgofmiyveqfiulbq`, region `ap-northeast-1`. |
+| Auth URLs | **Configured.** Site URL `https://ckltask.com`, redirect `/auth/callback`. |
+| First owner account | Not created — see 1.3. |
+| The application itself | **Not hosted.** Needs a Node runtime; see Part 2. |
+
+The landing page is static and needs no database. The application is a
+separate matter: it is what the Supabase project is for, and it cannot run on
+GitHub Pages.
 
 Work through the parts in order. Part 1 and Part 2 are independent, so the
 database can be set up while DNS propagates.
@@ -65,24 +77,21 @@ ones create:
 ### 1.3 Create the first owner
 
 Flowline never creates accounts by itself — signing in with an unknown email
-is refused on purpose. The first account has to be made by hand:
+is refused on purpose. The first account is made in the dashboard:
 
-1. **Authentication → Users → Add user**, using your real work email.
-   Tick *Auto Confirm User*.
-2. **SQL Editor**, substituting your email:
+**Authentication → Users → Add user → Create new user.** Use your real work
+email and tick *Auto Confirm User*.
 
-   ```sql
-   insert into public.profiles (id, full_name, job_title, role)
-   select id, 'Your Name', 'Owner', 'admin'
-   from auth.users
-   where email = 'you@yourcompany.com';
-   ```
+That is the whole step. The `on_auth_user_created` trigger writes the matching
+`public.profiles` row automatically, and it grants `admin` to the first
+profile in the table — so **whoever is added first becomes the owner**. Add
+yourself before anyone else.
 
-   `profiles` deliberately holds no email column — the address lives in
-   `auth.users` and is joined when needed, so there is one copy of it and one
-   place to change it.
+Everyone after that you add from inside the app.
 
-3. Everyone else you add from inside the app, once you are signed in.
+> `profiles` deliberately holds no email column. The address lives in
+> `auth.users` and is joined when needed, so there is one copy of it and one
+> place to change it.
 
 ### 1.4 Point Supabase at the domain
 
@@ -96,11 +105,11 @@ anywhere it has not been told about, which is the behaviour you want.
 
 ### 1.5 Collect the keys
 
-**Project Settings → API**. You need three values:
+**Project Settings → API Keys → "Legacy anon, service_role API keys"**.
 
 | Value | Where it goes |
 | --- | --- |
-| Project URL | `NEXT_PUBLIC_SUPABASE_URL` |
+| `https://zpurdgofmiyveqfiulbq.supabase.co` | `NEXT_PUBLIC_SUPABASE_URL` |
 | `anon` `public` key | `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
 | `service_role` `secret` key | `SUPABASE_SERVICE_ROLE_KEY` |
 
