@@ -4,7 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { CheckCircle2, Loader2, Mail, ShieldCheck, UserRound, Waves } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { GlassHero } from '@/components/three/glass-hero'
@@ -14,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { friendlyError } from '@/lib/data/api'
 import { listContainer, listItem, stillVariants } from '@/lib/motion'
 import { getBrowserClient } from '@/lib/supabase/client'
+import { IS_DEMO } from '@/lib/supabase/env'
 import { signInSchema, type SignInValues } from '@/lib/validators'
 
 function RolePoint({
@@ -48,6 +50,16 @@ function RolePoint({
 export default function LoginPage() {
   const [sentTo, setSentTo] = useState<string | null>(null)
   const reduced = useReducedMotion()
+  const router = useRouter()
+
+  /*
+   * There is nothing to sign in to in demo mode, so do not show a form that
+   * cannot work. The hosted app's middleware used to redirect this route; a
+   * static build has no middleware, so the redirect lives here instead.
+   */
+  useEffect(() => {
+    if (IS_DEMO) router.replace('/')
+  }, [router])
 
   const form = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),

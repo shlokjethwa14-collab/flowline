@@ -39,6 +39,24 @@ const DOMAIN = 'ckltask.com'
 const SUPABASE_URL = 'https://zpurdgofmiyveqfiulbq.supabase.co'
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h6cq2IvZMSyPS3NMjrey7w_e6RiHrmK'
 
+/*
+ * Which mode the published site runs in.
+ *
+ *   node scripts/build-landing.mjs          -> demo, no sign-in
+ *   node scripts/build-landing.mjs --live   -> connected to the database
+ *
+ * Demo serves a complete sample company out of the browser's own storage:
+ * every screen works, nothing is shared between visitors, and nothing reaches
+ * the database. Connected requires a real account, and sign-in is refused for
+ * any email that does not already exist in Supabase — which is why the site
+ * needs an account created in the dashboard before `--live` is usable.
+ *
+ * The switch is exactly the absence of the two NEXT_PUBLIC_SUPABASE_*
+ * variables; see src/lib/supabase/env.ts. Nothing else differs between the
+ * two builds.
+ */
+const LIVE = process.argv.includes('--live')
+
 function run(command, args, cwd = ROOT) {
   execFileSync(command, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' })
 }
@@ -150,9 +168,11 @@ rmSync(join(WORKTREE, 'src/app/auth/sign-out/route.ts'), { force: true })
  */
 const layoutPath = join(WORKTREE, 'src/app/layout.tsx')
 const layout = readFileSync(layoutPath, 'utf8')
+// A demo build talks to nothing, so its policy names nothing to talk to.
+const connectSrc = LIVE ? `'self' ${SUPABASE_URL} ${SUPABASE_URL.replace('https:', 'wss:')}` : `'self'`
 const metaCsp = `        <meta
           httpEquiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ${SUPABASE_URL} ${SUPABASE_URL.replace('https:', 'wss:')}; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
+          content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ${connectSrc}; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
         />
 `
 writeFileSync(layoutPath, layout.replace('      <head>\n', `      <head>\n${metaCsp}`), 'utf8')
@@ -210,10 +230,14 @@ execFileSync('npx', ['next', 'build'], {
     ...process.env,
     NEXT_PUBLIC_STATIC_EXPORT: '1',
     NEXT_PUBLIC_SITE_URL: `https://${DOMAIN}`,
-    NEXT_PUBLIC_SUPABASE_URL: SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: SUPABASE_PUBLISHABLE_KEY,
+    // Blank in a demo build. env.ts treats absent keys as the signal to serve
+    // the sample company, so this single difference decides the whole mode.
+    NEXT_PUBLIC_SUPABASE_URL: LIVE ? SUPABASE_URL : '',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: LIVE ? SUPABASE_PUBLISHABLE_KEY : '',
   },
 })
+
+console.warn(`[landing] mode: ${LIVE ? 'connected to Supabase' : 'demo — no sign-in required'}`)
 
 // --- 5. Collect the output ----------------------------------------------
 step('collecting output')
