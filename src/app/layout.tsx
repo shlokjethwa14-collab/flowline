@@ -9,6 +9,13 @@ import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import './globals.css'
 
+/**
+ * True only in the static landing build, which has no Node server behind it.
+ * Read at module scope so the check is compiled away rather than evaluated
+ * per render.
+ */
+const STATIC_EXPORT = process.env.NEXT_PUBLIC_STATIC_EXPORT === '1'
+
 const DESCRIPTION =
   'A calm internal task manager for production, sales and daily operations teams. Assign the work, see the day, close the day.'
 
@@ -69,10 +76,16 @@ export const viewport: Viewport = {
 }
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  // The middleware mints one nonce per request and forwards it here. Without
-  // it the Content Security Policy blocks the theme script below, and every
-  // load flashes the wrong theme before hydration corrects it.
-  const nonce = (await headers()).get('x-nonce') ?? undefined
+  /*
+   * The middleware mints one nonce per request and forwards it here. Without
+   * it the Content Security Policy blocks the theme script below, and every
+   * load flashes the wrong theme before hydration corrects it.
+   *
+   * The static landing build has no server and therefore no per-request
+   * nonce, and calling headers() there fails the export outright. That build
+   * gets its CSP from a meta tag instead — see scripts/build-landing.mjs.
+   */
+  const nonce = STATIC_EXPORT ? undefined : ((await headers()).get('x-nonce') ?? undefined)
 
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>

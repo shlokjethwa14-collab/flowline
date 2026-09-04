@@ -20,3 +20,7 @@ next-env.d.ts
 
 # Local tooling config, not part of the app.
 .claude/
+
+# Static landing build for GitHub Pages
+.landing-build/
+landing-out/
