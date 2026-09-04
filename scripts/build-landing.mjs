@@ -172,6 +172,84 @@ cpSync(join(WORKTREE, 'out'), OUT, { recursive: true })
 writeFileSync(join(OUT, 'CNAME'), `${DOMAIN}\n`, 'utf8')
 writeFileSync(join(OUT, '.nojekyll'), '', 'utf8')
 
+/*
+ * The landing page's "Sign in" and "See the demo" buttons point into the
+ * application, which is not part of this build and has no host yet. Left
+ * alone they 404, which is worse than saying so.
+ *
+ * This placeholder is deliberately plain and dependency-free — it is
+ * temporary, and it disappears the moment the real app is deployed to a Node
+ * host, because /login is then served by the app itself.
+ */
+const placeholder = (heading, body) => `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${heading} · Flowline</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+  :root { color-scheme: light dark; --bg:#ffffff; --fg:#18181b; --muted:#71717a; --line:#e4e4e7; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0a0a11; --fg:#fafafa; --muted:#a1a1aa; --line:#27272a; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; min-height:100dvh; display:grid; place-items:center; padding:24px;
+    background:var(--bg); color:var(--fg);
+    font:400 16px/1.6 ui-sans-serif,system-ui,'Segoe UI',Helvetica,Arial,sans-serif;
+  }
+  main { max-width:30rem; text-align:center; }
+  .mark {
+    width:52px; height:52px; margin:0 auto 22px; border-radius:15px;
+    background:linear-gradient(135deg,#8b7bf5,#6d58f0);
+    display:grid; place-items:center;
+    box-shadow:0 8px 24px -8px rgba(109,88,240,.7);
+  }
+  h1 { font-size:1.5rem; font-weight:600; letter-spacing:-.02em; margin:0 0 12px; }
+  p { color:var(--muted); margin:0 0 28px; text-wrap:pretty; }
+  a {
+    display:inline-block; padding:11px 20px; border-radius:999px;
+    border:1px solid var(--line); color:var(--fg); text-decoration:none; font-weight:500; font-size:14px;
+  }
+  a:hover { border-color:var(--muted); }
+</style>
+</head>
+<body>
+  <main>
+    <div class="mark" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 1.3 0 1.9-.5 2.5-1"/>
+        <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 1.3 0 1.9-.5 2.5-1"/>
+        <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 1.3 0 1.9-.5 2.5-1"/>
+      </svg>
+    </div>
+    <h1>${heading}</h1>
+    <p>${body}</p>
+    <a href="/">Back to the front page</a>
+  </main>
+</body>
+</html>
+`
+
+for (const [dir, heading, body] of [
+  [
+    'login',
+    'Sign-in is not open yet',
+    'The Flowline workspace for this company is still being set up. Once it is connected, this is where you will sign in with your work email.',
+  ],
+  [
+    'my-day',
+    'The workspace is not connected yet',
+    'This is where your day’s work will appear. The company database has not been linked to this address yet.',
+  ],
+]) {
+  mkdirSync(join(OUT, dir), { recursive: true })
+  writeFileSync(join(OUT, dir, 'index.html'), placeholder(heading, body), 'utf8')
+}
+
 writeFileSync(
   join(OUT, 'manifest.webmanifest'),
   JSON.stringify(
