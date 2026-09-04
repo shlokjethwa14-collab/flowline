@@ -61,6 +61,18 @@ function localFallback(title: string, taskType: (typeof TASK_TYPE_VALUES)[number
   }
 }
 
+/**
+ * Capability probe.
+ *
+ * The client asks this before enabling the AI controls, so a missing key
+ * disables the button with an explanation rather than failing after someone
+ * has already written a transcript. It reports only whether a key exists —
+ * never the key, its length, or its prefix.
+ */
+export async function GET() {
+  return NextResponse.json({ configured: Boolean(process.env.ANTHROPIC_API_KEY?.trim()) })
+}
+
 export async function POST(request: NextRequest) {
   let body: unknown
   try {

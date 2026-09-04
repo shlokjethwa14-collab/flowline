@@ -274,3 +274,23 @@ export const MY_DAY_GROUPS = [
 ] as const
 
 export type MyDayGroupKey = (typeof MY_DAY_GROUPS)[number]['key']
+
+/**
+ * The classification label for a custom work type, always resolving to
+ * something.
+ *
+ * `base_type` was optional in earlier versions, so rows exist with it null or
+ * holding a value that no longer maps to anything. Both used to render as an
+ * empty string, producing the dangling "Groups with · about 1h 30m" that was
+ * reported. General work is the safe default: it is the least specific
+ * classification and carries no behaviour a person would be surprised by.
+ */
+export function resolveBaseTypeLabel(baseType: string | null | undefined): string {
+  if (!baseType) return GENERAL_LABEL
+  return TYPE_BY_VALUE.get(baseType as TaskType)?.label ?? GENERAL_LABEL
+}
+
+/** The classification a custom type falls back to when it has none. */
+export const GENERAL_BASE_TYPE: TaskType = 'general'
+
+const GENERAL_LABEL = TYPE_BY_VALUE.get('general')?.label ?? 'General work'

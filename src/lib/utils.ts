@@ -253,3 +253,19 @@ export function humanMinutes(minutes: number | null | undefined): string {
 export function pluralize(count: number, singular: string, plural?: string): string {
   return count === 1 ? singular : (plural ?? `${singular}s`)
 }
+
+/**
+ * The tail of a sentence like "Calls recorded ___".
+ *
+ * `formatFriendlyDay` returns a standalone label ("Today", "12 August") that
+ * reads wrong mid-sentence and, worse, was previously not used at all — the
+ * heading said "today" regardless of which day was being viewed, which is
+ * exactly backwards for a historical report.
+ */
+export function relativeDayPhrase(dayKey: string): string {
+  const label = formatFriendlyDay(dayKey)
+  if (label === 'Today') return 'today'
+  if (label === 'Yesterday') return 'yesterday'
+  if (label === 'Tomorrow') return 'tomorrow'
+  return `on ${label}`
+}

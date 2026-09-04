@@ -31,9 +31,10 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActivity, useCalls, useHandoffs, useProfiles, useTasks } from '@/lib/data/queries'
+import { downloadTextFile } from '@/lib/download'
 import { buildEveningReport, renderReportText } from '@/lib/report'
 import type { EveningReport } from '@/lib/types'
-import { cn, formatDate, formatFriendlyDay, formatTime, todayKey } from '@/lib/utils'
+import { cn, formatDate, formatFriendlyDay, formatTime, relativeDayPhrase, todayKey } from '@/lib/utils'
 import { useUIStore } from '@/store/ui'
 
 function shiftDay(dayKey: string, days: number): string {
@@ -45,18 +46,9 @@ function shiftDay(dayKey: string, days: number): string {
   return `${y}-${m}-${day}`
 }
 
-function downloadReport(report: EveningReport): void {
-  const text = renderReportText(report)
-  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `flowline-evening-report-${report.date}.txt`
-  document.body.appendChild(anchor)
-  anchor.click()
-  document.body.removeChild(anchor)
-  // Give the browser a moment to start the download before revoking.
-  window.setTimeout(() => URL.revokeObjectURL(url), 2000)
+/** The filename carries the report's own date, not the day it was saved. */
+export function reportFilename(report: Pick<EveningReport, 'date'>): string {
+  return `flowline-evening-report-${report.date}.txt`
 }
 
 function DatePicker({ value, onChange }: { value: string; onChange: (next: string) => void }) {
@@ -138,8 +130,18 @@ function EveningReportContent() {
         action={
           <Button
             onClick={() => {
-              downloadReport(report)
-              toast.success('Report downloaded.', { description: `flowline-evening-report-${report.date}.txt` })
+              // Report what actually happened. The old version announced
+              // success before knowing, so a blocked or failed save still
+              // said "Report downloaded."
+              const outcome = downloadTextFile({
+                filename: reportFilename(report),
+                contents: renderReportText(report),
+              })
+              if (outcome.ok) {
+                toast.success('Report downloaded.', { description: outcome.filename })
+              } else {
+                toast.error('The report could not be saved.', { description: outcome.reason })
+              }
             }}
             disabled={loading}
             className="gap-1.5"
@@ -309,7 +311,9 @@ function EveningReportContent() {
           <section className="space-y-3 xl:col-span-2 2xl:col-span-3">
             <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.011em] text-zinc-800">
               <Mic className="h-4 w-4 text-zinc-400" strokeWidth={1.9} />
-              Calls recorded today
+              {/* Was hard-coded "today", which was wrong on every historical
+                  report — the one place the date matters most. */}
+              Calls recorded {relativeDayPhrase(report.date)}
             </h2>
             {report.callLogs.length === 0 ? (
               <EmptyState

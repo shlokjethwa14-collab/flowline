@@ -253,22 +253,81 @@ function needsServer(feature: string): never {
   throw new Error(`${feature} is not available on this address yet — it needs the full Flowline server.`)
 }
 
+/** How long an AI call may take before we stop waiting on it. */
+const AI_TIMEOUT_MS = 45_000
+
+/**
+ * POSTs to an AI route with a timeout and one retry.
+ *
+ * Three failure modes are handled distinctly, because they need different
+ * words in front of a user:
+ *
+ *   - **Timeout or network.** Retried once, then reported as something to
+ *     try again. These are usually transient.
+ *   - **A non-JSON response.** The route does not exist — a static build, or
+ *     a bad deploy. Parsing the 404 page as JSON is what produced the
+ *     "Unexpected token '<'" a supervisor used to see.
+ *   - **A JSON error from the route itself.** Reported verbatim: it was
+ *     written for this situation and says more than we could infer.
+ *
+ * A 4xx is never retried. The request was wrong and will be wrong again.
+ */
+/** An error a retry cannot help: the request or the deployment is wrong. */
+class FinalAiError extends Error {}
+
+async function postAi<T>(path: string, body: unknown, feature: string): Promise<T> {
+  let lastError: Error | null = null
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      })
+
+      if (!response.headers.get('content-type')?.includes('application/json')) {
+        throw new FinalAiError(
+          `${feature} is not available here — this deployment has no AI server. An administrator needs to run Flowline on a Node host with ANTHROPIC_API_KEY set.`,
+        )
+      }
+
+      const payload = (await response.json()) as Record<string, unknown> & { error?: string }
+
+      if (!response.ok) {
+        const message = payload.error ?? `${feature} failed.`
+        // The server has judged the request; an identical one will not fare better.
+        if (response.status < 500) throw new FinalAiError(message)
+        lastError = new Error(message)
+        continue
+      }
+
+      return payload as T
+    } catch (error) {
+      if (error instanceof FinalAiError) throw error
+      const err = error instanceof Error ? error : new Error(String(error))
+      lastError = err.name === 'TimeoutError' ? new Error(`${feature} took too long. Try again.`) : err
+    }
+  }
+
+  throw lastError ?? new Error(`${feature} failed.`)
+}
+
 /** Sends a transcript to be read, summarised and mined for dated promises. */
 export async function analyseCall(transcript: string, counterparty: string): Promise<CallAnalysis> {
   if (STATIC_EXPORT) needsServer('Reading a call')
-  const response = await fetch('/api/ai/call-summary', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const payload = await postAi<Partial<CallAnalysis>>(
+    '/api/ai/call-summary',
+    {
       transcript,
       counterparty,
       today: todayKey(),
       timezone: localTimeZone(),
       weekday: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
-    }),
-  })
-  const payload = (await response.json()) as Partial<CallAnalysis> & { error?: string }
-  if (!response.ok) throw new Error(payload.error ?? 'The call could not be read.')
+    },
+    'Reading the call',
+  )
   return {
     summary: payload.summary ?? '',
     commitments: payload.commitments ?? [],
@@ -288,15 +347,12 @@ export interface AiDraft {
 /** Asks the server to draft an SOP and checklist for a job. */
 export async function draftWorkPlan(title: string, taskType: string): Promise<AiDraft> {
   if (STATIC_EXPORT) needsServer('Drafting a work plan')
-  const response = await fetch('/api/ai/draft', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, task_type: taskType }),
-  })
-  const payload = (await response.json()) as Partial<AiDraft> & { error?: string }
-  if (!response.ok || !payload.sop) {
-    throw new Error(payload.error ?? 'The draft could not be written.')
-  }
+  const payload = await postAi<Partial<AiDraft>>(
+    '/api/ai/draft',
+    { title, task_type: taskType },
+    'Drafting the procedure',
+  )
+  if (!payload.sop) throw new Error('The draft came back empty. Try again, or write the steps yourself.')
   return {
     sop: payload.sop,
     checklist: payload.checklist ?? [],

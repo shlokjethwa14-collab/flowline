@@ -27,6 +27,7 @@ import {
   CATEGORY_ICONS,
   categoryStyles,
   TASK_TYPES,
+  resolveBaseTypeLabel,
 } from '@/lib/task-meta'
 import type { TaskCategory } from '@/lib/types'
 import { cn, humanMinutes, uid } from '@/lib/utils'
@@ -167,8 +168,13 @@ export function CategoryManagerDialog({ open, onOpenChange }: Props) {
               </span>
               <div className="min-w-0">
                 <p className="truncate text-[14px] font-semibold text-zinc-900">{name || 'New work type'}</p>
+                {/* `base_type` was optional for a while, so older rows have
+                    none and `find()` returned undefined — which rendered the
+                    dangling "Groups with · about 1h 30m" people reported.
+                    Every type now resolves to a classification, falling back
+                    to General work, so the sentence is always complete. */}
                 <p className="text-[11.5px] text-zinc-500">
-                  Groups with {TASK_TYPES.find((t) => t.value === form.watch('base_type'))?.label}
+                  Behaves like {resolveBaseTypeLabel(form.watch('base_type'))}
                   {minutes > 0 && ` · about ${humanMinutes(minutes)}`}
                 </p>
               </div>

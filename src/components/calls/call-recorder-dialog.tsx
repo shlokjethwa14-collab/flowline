@@ -17,6 +17,7 @@ import {
   Users,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAiStatus } from '@/hooks/use-ai-status'
 import { toast } from 'sonner'
 import { PersonAvatar } from '@/components/shared/person-avatar'
 import { Badge } from '@/components/ui/badge'
@@ -112,6 +113,8 @@ function CallRecorderBody({ open, onOpenChange, taskId = null, defaultCounterpar
   const [keep, setKeep] = useState<Record<string, boolean>>({})
   const [assignTo, setAssignTo] = useState<string>('')
   const [analysed, setAnalysed] = useState(false)
+  const [analyseError, setAnalyseError] = useState<string | null>(null)
+  const ai = useAiStatus()
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -232,9 +235,21 @@ function CallRecorderBody({ open, onOpenChange, taskId = null, defaultCounterpar
           // part. Unticking is the escape hatch, not the default path.
           setKeep(Object.fromEntries(withIds.map((c) => [c.id, Boolean(c.due_date)])))
           setAnalysed(true)
+          setAnalyseError(null)
           if (!result.ai) {
             toast.info('Saved without a summary.', { description: result.summary })
           }
+        },
+        /*
+         * Without this the dialog was a dead end: a failed read left
+         * `analysed` false, Save was gated on `analysed`, and the only way
+         * out of a dialog holding a real transcript was to discard it.
+         *
+         * The failure is now shown in place with a retry, and Save no longer
+         * depends on the AI at all — see its disabled condition below.
+         */
+        onError: (error) => {
+          setAnalyseError(error instanceof Error ? error.message : 'The call could not be read.')
         },
       },
     )
@@ -361,13 +376,61 @@ function CallRecorderBody({ open, onOpenChange, taskId = null, defaultCounterpar
               </p>
             </div>
 
-            <Button onClick={onAnalyse} disabled={analyse.isPending || transcript.trim().length < 20} className="gap-2">
-              {analyse.isPending ? <Loader2 className="animate-spin" /> : <Sparkles />}
-              {analyse.isPending ? 'Reading the call…' : 'Read the call'}
-            </Button>
+            <div className="space-y-2">
+              <Button
+                onClick={onAnalyse}
+                disabled={
+                  analyse.isPending || transcript.trim().length < 20 || ai.state !== 'ready'
+                }
+                aria-describedby={ai.state === 'unavailable' ? 'ai-unavailable' : undefined}
+                className="gap-2"
+              >
+                {analyse.isPending ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                {analyse.isPending ? 'Reading the call…' : 'Read the call'}
+              </Button>
+
+              {/* Said before the button is pressed, not after. The old flow
+                  let someone dictate a whole call and only then discover
+                  there was no server to read it. */}
+              {ai.state === 'unavailable' && (
+                <p id="ai-unavailable" className="text-[12px] leading-relaxed text-ink-muted">
+                  <span className="font-medium text-ink">Reading calls is turned off. </span>
+                  {ai.reason} {ai.fix}
+                  <br />
+                  You can still write the summary yourself below and save the call.
+                </p>
+              )}
+
+              {analyseError && (
+                <div
+                  role="alert"
+                  className="surface rounded-2xl p-3 text-[12.5px] leading-relaxed text-ink-muted"
+                >
+                  <p className="font-medium text-ink">The call could not be read.</p>
+                  <p className="mt-0.5">{analyseError}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button size="sm" variant="glass" onClick={onAnalyse} disabled={analyse.isPending}>
+                      Try again
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="glass"
+                      onClick={() => {
+                        setAnalyseError(null)
+                        setAnalysed(true)
+                      }}
+                    >
+                      Write it myself
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* --- Result -------------------------------------------- */}
+          {/* Also shown after "Write it myself", so the summary box and the
+              follow-up list stay reachable without the AI. */}
           {analysed && (
             <div className="space-y-5">
               <Separator />
@@ -489,7 +552,14 @@ function CallRecorderBody({ open, onOpenChange, taskId = null, defaultCounterpar
           <Button variant="glass" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={onSave} disabled={save.isPending || !analysed} className="gap-2">
+          {/* Gated on there being something to save, never on the AI having
+              succeeded. A call that was recorded is worth keeping whether or
+              not a model was available to read it. */}
+          <Button
+            onClick={onSave}
+            disabled={save.isPending || transcript.trim().length === 0}
+            className="gap-2"
+          >
             {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
             Save call
             {kept.length > 0 && ` · schedule ${kept.length}`}
