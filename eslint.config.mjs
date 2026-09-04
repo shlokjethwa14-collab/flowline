@@ -10,7 +10,19 @@ import tseslint from 'typescript-eslint'
  */
 export default tseslint.config(
   {
-    ignores: ['node_modules/**', '.next/**', 'out/**', 'coverage/**', 'next-env.d.ts'],
+    ignores: [
+      'node_modules/**',
+      '.next/**',
+      'out/**',
+      'coverage/**',
+      'next-env.d.ts',
+      // Build artefacts of the static landing site: a throwaway worktree and
+      // the compiled bundle it produces. Both are generated, both are
+      // gitignored, and linting minified output produces thousands of
+      // meaningless errors.
+      '.landing-build/**',
+      'landing-out/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

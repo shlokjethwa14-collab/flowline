@@ -19,7 +19,10 @@
         "schema:build": "node scripts/build-schema.mjs",
         "check:domain": "node scripts/check-domain.mjs",
         "brand:build": "node scripts/generate-brand-assets.mjs",
-        "story:optimise": "node scripts/optimise-story-images.mjs"
+        "story:optimise": "node scripts/optimise-story-images.mjs",
+        "landing:build": "node scripts/build-landing.mjs",
+        "landing:deploy": "node scripts/build-landing.mjs && node scripts/deploy-landing.mjs",
+        "landing:https": "node scripts/enforce-https.mjs"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.120.0",
