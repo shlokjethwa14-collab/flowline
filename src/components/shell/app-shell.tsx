@@ -3,6 +3,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { CallRecorderDialog } from '@/components/calls/call-recorder-dialog'
 import { PageShell } from '@/components/motion/page-shell'
+import { AmbientField } from './ambient-field'
 import { AddPersonDialog } from '@/components/team/add-person-dialog'
 import { AssignWorkDialog } from '@/components/tasks/assign-work-dialog'
 import { TaskDetailsSheet } from '@/components/tasks/task-details-sheet'
@@ -40,11 +41,22 @@ export function AppShell({ children }: { children: ReactNode }) {
   useQuickAddShortcut(isAdmin)
 
   return (
-    <div className="depth-scene min-h-dvh lg:pl-[264px]">
+    <>
+      {/* The ground the glass reacts to — outside the wrapper below on
+          purpose. `perspective` makes an element the containing block for
+          its fixed descendants, so inside it this canvas stretched to the
+          full document height instead of staying pinned to the viewport. */}
+      <AmbientField />
+
+      <div className="depth-scene relative min-h-dvh lg:pl-[264px]">
+        {/* Content dissolves into the background beneath the floating topbar
+            rather than sliding under a hard edge. */}
+        <div className="scroll-edge z-20" aria-hidden="true" />
+
       <Sidebar />
       <Topbar />
 
-      <main className="px-3 pb-16 pt-5 sm:px-4 lg:px-6">
+      <main className="relative z-10 px-3 pb-16 pt-5 sm:px-4 lg:px-6">
         {/* Wide enough for the report and the board to breathe on a large
             display; the cap only stops line lengths running away past 2K. */}
         <div className="mx-auto w-full max-w-[1680px]">
@@ -60,8 +72,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         taskId={callTaskId}
         defaultCounterparty={callCounterparty}
       />
-      {isAdmin && <AssignWorkDialog />}
-      {isAdmin && <AddPersonDialog />}
-    </div>
+        {isAdmin && <AssignWorkDialog />}
+        {isAdmin && <AddPersonDialog />}
+      </div>
+    </>
   )
 }

@@ -444,6 +444,49 @@
       inset 0 -1px 0 var(--glass-lowlight);
   }
 
+  /*
+   * The content layer.
+   *
+   * WWDC25 is unambiguous that Liquid Glass belongs to the navigation layer
+   * and not to content: not on table views, not on the primary canvas, and
+   * never stacked glass on glass. Task cards are content — forty of them on
+   * All Work, each refracting the background, is exactly the "competing
+   * hierarchies" the session warns about, and it left nothing for the
+   * toolbar above them to be distinct from.
+   *
+   * So cards keep the edge discipline that gives them form — ring, specular
+   * highlight, contact shadow — and give up the one thing that made them
+   * glass: they no longer sample what is behind them. The result reads as a
+   * card resting on the surface rather than a pane hovering over it, and the
+   * navigation layer is once again the only thing that floats.
+   *
+   * It is also markedly faster. `backdrop-filter` forces the compositor to
+   * re-sample the backdrop for every element that uses it, and a long board
+   * of them over a moving background is the most expensive thing this app
+   * could ask a phone to do.
+   */
+  .surface {
+    position: relative;
+    isolation: isolate;
+    background: hsl(var(--card) / 0.86);
+    box-shadow:
+      0 0 0 0.5px var(--glass-border),
+      0 1px 2px var(--glass-shadow-contact),
+      0 6px 16px -10px var(--glass-shadow),
+      inset 0 1px 0 var(--glass-highlight),
+      inset 0 -1px 0 var(--glass-lowlight);
+  }
+
+  .surface-raised {
+    background: hsl(var(--card) / 0.94);
+    box-shadow:
+      0 0 0 0.5px var(--glass-border),
+      0 1px 2px var(--glass-shadow-contact),
+      0 12px 28px -14px var(--glass-shadow),
+      inset 0 1px 0 var(--glass-highlight),
+      inset 0 -1px 0 var(--glass-lowlight);
+  }
+
   /* One edge cue is enough at this density; a repeated inner stroke is
      what reads as noise forty rows down a page. */
   .glass-quiet::after {
@@ -669,6 +712,43 @@
   }
 
   /*
+   * The ambient field is drawn at a quarter scale and blurred here rather
+   * than in the canvas. A CSS blur is done by the compositor on the GPU; the
+   * same blur applied per-frame in 2D context is done on the CPU and costs
+   * far more for an identical result.
+   */
+  .ambient-field {
+    filter: blur(64px) saturate(1.15);
+    transform: scale(1.25);
+    transform-origin: center;
+    opacity: 0.9;
+  }
+
+  /*
+   * Scroll edge effect.
+   *
+   * WWDC25 asks for content to dissolve into the background beneath a
+   * floating navigation layer, rather than sliding under a hard edge. This
+   * is the gradient that does it — it sits behind the topbar and fades the
+   * content out as it passes underneath, so the glass reads as floating
+   * above the page rather than pasted onto it.
+   */
+  .scroll-edge {
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 108px;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      hsl(var(--background) / 0.92) 0%,
+      hsl(var(--background) / 0.62) 46%,
+      hsl(var(--background) / 0) 100%
+    );
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+  }
+
+  /*
    * What the landing story shows when WebGL is off the table — a phone, a
    * low-core machine, or a reduced-motion preference. It is a real design,
    * not a grey box: most visitors on mobile will only ever see this, so it
@@ -846,5 +926,65 @@
 
   .seg-indicator {
     transition: none;
+  }
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Accessibility modifiers for Liquid Glass
+ * ---------------------------------------------------------------------------
+ * WWDC25's "Meet Liquid Glass" treats these as part of the material rather
+ * than an afterthought: on Apple's platforms they are applied automatically.
+ * On the web nothing is automatic, so they are written out here.
+ *
+ * The intent in both cases is the same — keep the material's structure and
+ * its edges, but stop it depending on what is behind it for legibility.
+ */
+
+/* Reduced transparency: frost the glass rather than see through it. */
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass-thin,
+  .glass-thick,
+  .glass-quiet {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: hsl(var(--card));
+  }
+
+  /* With nothing showing through, the moving field is only a distraction. */
+  .ambient-field {
+    display: none;
+  }
+}
+
+/*
+ * Increased contrast: predominantly one tone, with a hard border. The session
+ * describes elements becoming near-black or near-white with contrasting
+ * borders and highlights, which is what this reproduces.
+ */
+@media (prefers-contrast: more) {
+  .glass,
+  .glass-thin,
+  .glass-thick,
+  .glass-quiet {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: hsl(var(--background));
+    box-shadow: 0 0 0 1.5px hsl(var(--foreground) / 0.62);
+  }
+
+  /* The three edge cues become noise once there is a real border. */
+  .glass::before,
+  .glass::after {
+    display: none;
+  }
+
+  .ambient-field {
+    display: none;
+  }
+
+  .spec::after {
+    display: none;
   }
 }

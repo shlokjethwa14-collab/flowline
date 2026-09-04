@@ -71,7 +71,7 @@ export function TaskCard({
         onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
         className={cn(
-          'glass glass-quiet spec group relative h-full overflow-hidden rounded-3xl p-4',
+          'surface spec group relative h-full overflow-hidden rounded-3xl p-4',
           done && 'opacity-[0.86]',
           className,
         )}
@@ -228,7 +228,7 @@ export function TaskCard({
 
 export function TaskCardSkeleton() {
   return (
-    <div className="glass glass-quiet rounded-3xl p-4">
+    <div className="surface rounded-3xl p-4">
       <div className="flex items-start gap-2.5">
         <Skeleton className="h-9 w-9 rounded-2xl" />
         <div className="flex-1 space-y-1.5">
