@@ -237,8 +237,25 @@ export interface CallAnalysis {
   ai: boolean
 }
 
+/**
+ * True in the static build, which has no server and therefore none of the
+ * `/api` routes below.
+ *
+ * Without this guard `fetch` receives the 404 page, `response.json()` fails
+ * on the HTML, and a supervisor is shown a JSON syntax error. A plain sentence
+ * is better. The three features affected all need a server-side secret — an
+ * Anthropic key or the Supabase service role — so they cannot be moved into
+ * the browser even in principle.
+ */
+const STATIC_EXPORT = process.env.NEXT_PUBLIC_STATIC_EXPORT === '1'
+
+function needsServer(feature: string): never {
+  throw new Error(`${feature} is not available on this address yet — it needs the full Flowline server.`)
+}
+
 /** Sends a transcript to be read, summarised and mined for dated promises. */
 export async function analyseCall(transcript: string, counterparty: string): Promise<CallAnalysis> {
+  if (STATIC_EXPORT) needsServer('Reading a call')
   const response = await fetch('/api/ai/call-summary', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -270,6 +287,7 @@ export interface AiDraft {
 
 /** Asks the server to draft an SOP and checklist for a job. */
 export async function draftWorkPlan(title: string, taskType: string): Promise<AiDraft> {
+  if (STATIC_EXPORT) needsServer('Drafting a work plan')
   const response = await fetch('/api/ai/draft', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -494,6 +512,7 @@ export async function handoffTask(taskId: string, toUserId: string, note: string
 
 export async function addEmployee(input: AddEmployeeInput): Promise<Profile> {
   if (IS_DEMO) return tick(demo.demoAddEmployee(input))
+  if (STATIC_EXPORT) needsServer('Adding a teammate')
   const response = await fetch('/api/team/invite', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

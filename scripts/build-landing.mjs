@@ -25,7 +25,7 @@
  * Output lands in `landing-out/`.
  */
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -34,6 +34,10 @@ const WORKTREE = join(ROOT, '.landing-build')
 const OUT = join(ROOT, 'landing-out')
 
 const DOMAIN = 'ckltask.com'
+
+/** The live project. Both values are safe in a browser — see the build step. */
+const SUPABASE_URL = 'https://zpurdgofmiyveqfiulbq.supabase.co'
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h6cq2IvZMSyPS3NMjrey7w_e6RiHrmK'
 
 function run(command, args, cwd = ROOT) {
   execFileSync(command, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' })
@@ -90,30 +94,68 @@ step('removing server-only routes')
  * what is shipped — it only makes the export legal.
  */
 for (const path of [
+  // Middleware cannot exist at all under `output: 'export'` — the build
+  // refuses outright. Its job here was refreshing the Supabase session and
+  // redirecting signed-out visitors; supabase-js refreshes its own token in
+  // the browser, and the redirect moves into the app layout below.
   'src/middleware.ts',
+  // Every /api route needs a server-side secret (the Anthropic key, or the
+  // Supabase service role) and so cannot move into the browser. The three
+  // features that call them fail with a plain sentence — see needsServer()
+  // in src/lib/data/api.ts.
   'src/app/api',
-  'src/app/(app)',
-  'src/app/auth',
-  'src/app/login',
-  // Generated at request time from Netlify's env; the landing build writes
-  // its own robots.txt below.
+  // Route handlers. Under `output: 'export'` each would need an explicit
+  // `dynamic = "force-static"`, and the hosted build wants them dynamic — so
+  // this build writes them as plain files instead.
   'src/app/robots.ts',
   'src/app/sitemap.ts',
-  // These three are route handlers. Under `output: 'export'` each would need
-  // an explicit `dynamic = "force-static"`, and the app build wants them
-  // dynamic — so the landing build writes them as plain files instead.
   'src/app/manifest.ts',
 ]) {
   rmSync(join(WORKTREE, path), { recursive: true, force: true })
 }
 
-// The root page redirects into the app, which does not exist in this build.
-// Serve the landing story at `/` instead, so ckltask.com works with no path.
-writeFileSync(
-  join(WORKTREE, 'src/app/page.tsx'),
-  `export { default } from './welcome/page'\nexport { metadata } from './welcome/layout'\n`,
-  'utf8',
-)
+/*
+ * Swap the three server pieces for client-side equivalents.
+ *
+ * These live as real .tsx files under scripts/static/ rather than as strings
+ * in here, so they are type-checked and linted like the rest of the codebase
+ * instead of silently rotting inside a template literal.
+ */
+for (const [source, target] of [
+  ['auth-callback-page.tsx', 'src/app/auth/callback/page.tsx'],
+  ['sign-out-page.tsx', 'src/app/auth/sign-out/page.tsx'],
+  ['app-layout.tsx', 'src/app/(app)/layout.tsx'],
+]) {
+  cpSync(join(ROOT, 'scripts', 'static', source), join(WORKTREE, target))
+}
+rmSync(join(WORKTREE, 'src/app/auth/callback/route.ts'), { force: true })
+rmSync(join(WORKTREE, 'src/app/auth/sign-out/route.ts'), { force: true })
+
+/*
+ * Security headers, as far as a static host allows.
+ *
+ * GitHub Pages serves fixed headers and cannot be configured, so the
+ * middleware's set cannot be reproduced. Of those, only the Content Security
+ * Policy also works as a meta tag, so that is what goes in. It is weaker than
+ * the served one — a meta CSP cannot carry a per-request nonce, cannot set
+ * frame-ancestors, and is applied only after the parser reaches it.
+ *
+ * What is lost, and why it is survivable here: X-Frame-Options and
+ * frame-ancestors (clickjacking), which matters less for a site whose every
+ * action needs a signed-in session; Referrer-Policy, though GitHub Pages sends
+ * a same-origin default; and HSTS, which GitHub sets itself on Pages domains.
+ *
+ * The real protection has never been in these headers. Every row is decided
+ * by row level security inside Postgres against the caller's own token.
+ */
+const layoutPath = join(WORKTREE, 'src/app/layout.tsx')
+const layout = readFileSync(layoutPath, 'utf8')
+const metaCsp = `        <meta
+          httpEquiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ${SUPABASE_URL} ${SUPABASE_URL.replace('https:', 'wss:')}; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
+        />
+`
+writeFileSync(layoutPath, layout.replace('      <head>\n', `      <head>\n${metaCsp}`), 'utf8')
 
 // --- 3. Export configuration -------------------------------------------
 step('writing the export config')
@@ -153,11 +195,24 @@ export default nextConfig
 
 // --- 4. Build ------------------------------------------------------------
 step('building')
+/*
+ * The Supabase URL and publishable key are baked into the bundle. That is by
+ * design, not an oversight: this key is meant to be public, and every request
+ * it makes is still judged by row level security against the signed-in user's
+ * own token. The service role key is the secret one, and it is never present
+ * in a browser build.
+ */
 execFileSync('npx', ['next', 'build'], {
   cwd: WORKTREE,
   stdio: 'inherit',
   shell: process.platform === 'win32',
-  env: { ...process.env, NEXT_PUBLIC_STATIC_EXPORT: '1', NEXT_PUBLIC_SITE_URL: `https://${DOMAIN}` },
+  env: {
+    ...process.env,
+    NEXT_PUBLIC_STATIC_EXPORT: '1',
+    NEXT_PUBLIC_SITE_URL: `https://${DOMAIN}`,
+    NEXT_PUBLIC_SUPABASE_URL: SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: SUPABASE_PUBLISHABLE_KEY,
+  },
 })
 
 // --- 5. Collect the output ----------------------------------------------
@@ -234,21 +289,17 @@ const placeholder = (heading, body) => `<!doctype html>
 </html>
 `
 
-for (const [dir, heading, body] of [
-  [
-    'login',
-    'Sign-in is not open yet',
-    'The Flowline workspace for this company is still being set up. Once it is connected, this is where you will sign in with your work email.',
-  ],
-  [
-    'my-day',
-    'The workspace is not connected yet',
-    'This is where your day’s work will appear. The company database has not been linked to this address yet.',
-  ],
-]) {
-  mkdirSync(join(OUT, dir), { recursive: true })
-  writeFileSync(join(OUT, dir, 'index.html'), placeholder(heading, body), 'utf8')
-}
+/*
+ * A single-page-app fallback. GitHub Pages serves 404.html for any path it
+ * does not recognise; pointing that at the app's own not-found page keeps a
+ * mistyped URL on-brand instead of showing GitHub's default.
+ */
+mkdirSync(join(OUT, 'not-found'), { recursive: true })
+writeFileSync(
+  join(OUT, 'not-found', 'index.html'),
+  placeholder('Page not found', 'That address does not exist. The front page has everything.'),
+  'utf8',
+)
 
 writeFileSync(
   join(OUT, 'manifest.webmanifest'),
