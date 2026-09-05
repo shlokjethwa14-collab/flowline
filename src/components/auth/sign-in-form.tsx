@@ -212,7 +212,7 @@ function ClaimOwnerForm() {
     })
 
     if (error) {
-      setPhase({ at: 'error', message: error.message })
+      setPhase({ at: 'error', message: describeSignUpError(error.message) })
       return
     }
 
@@ -300,4 +300,36 @@ function ClaimOwnerForm() {
       </form>
     </>
   )
+}
+
+/**
+ * Turns a sign-up failure into something a person can act on.
+ *
+ * The one that actually bit: Supabase tries to send a confirmation email when
+ * "Confirm email" is on. Login IDs map to a domain that receives no mail, so
+ * that message goes nowhere and the built-in SMTP allowance — a handful an
+ * hour — is spent for nothing. The raw error is "email rate limit exceeded",
+ * which describes the symptom and hides the cause completely.
+ *
+ * There is nothing the browser can do about it: the fix is one setting on the
+ * project. So the message names the setting rather than suggesting a retry
+ * that would fail the same way.
+ */
+function describeSignUpError(raw: string): string {
+  const text = raw.toLowerCase()
+
+  if (text.includes('rate limit') || text.includes('email rate')) {
+    return (
+      'Supabase tried to send a confirmation email and ran out of its allowance. ' +
+      'Login IDs have no real mailbox, so no confirmation should be sent at all. ' +
+      'Turn off Authentication → Sign In / Providers → Email → "Confirm email" in Supabase, then try again.'
+    )
+  }
+  if (text.includes('already registered') || text.includes('already been registered')) {
+    return 'That login ID is already taken. Pick another.'
+  }
+  if (text.includes('signups not allowed') || text.includes('signup is disabled')) {
+    return 'Sign-ups are turned off for this project. Enable them in Supabase, or ask an existing owner to create the account.'
+  }
+  return raw
 }
