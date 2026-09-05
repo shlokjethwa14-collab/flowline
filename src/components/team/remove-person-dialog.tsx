@@ -78,6 +78,20 @@ export function RemovePersonDialog({
       { userId: person.id, reassignTo: reassignTo === UNASSIGN ? null : reassignTo },
       {
         onSuccess: (moved) => {
+          /*
+           * The fallback path cannot keep the person on past records, so it
+           * must not report the same success. Saying "removed from the team"
+           * when their name has also been wiped from every finished job would
+           * hide the one consequence worth knowing about.
+           */
+          if (lastRemovalLostHistory) {
+            toast.warning(`${person.full_name} was removed.`, {
+              description:
+                'Their name has also been cleared from work they already did — this database is missing the update that would have kept it (migration 0016).',
+            })
+            onOpenChange(false)
+            return
+          }
           toast.success(`${person.full_name} was removed from the team.`, {
             description:
               moved > 0
