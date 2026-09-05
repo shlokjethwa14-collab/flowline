@@ -2,7 +2,7 @@
 
 import type { PostgrestError } from '@supabase/supabase-js'
 import { ACCOUNT_DOMAIN } from '@/lib/accounts'
-import { createIsolatedClient, getBrowserClient } from '@/lib/supabase/client'
+import { createIsolatedClient, getBrowserClient, requireBrowserClient } from '@/lib/supabase/client'
 import { IS_DEMO } from '@/lib/supabase/env'
 import * as demo from '@/lib/demo/store'
 import type {
@@ -715,12 +715,97 @@ export async function removePerson(userId: string, reassignTo: string | null): P
   if (IS_DEMO) return tick(demo.demoRemovePerson(userId, reassignTo))
   const supabase = getBrowserClient()
   if (!supabase) throw new Error('Supabase is not configured.')
+
   const { data, error } = await supabase.rpc('deactivate_person', {
     p_user_id: userId,
     p_reassign_to: reassignTo ?? undefined,
   })
+
+  /*
+   * The function is missing when migration 0016 has not been applied to this
+   * project. PostgREST reports that as PGRST202 — "could not find the
+   * function in the schema cache" — which is a deployment gap rather than
+   * anything the person pressing the button did wrong.
+   *
+   * Rather than fail, do the same work with ordinary table writes. An owner
+   * is already permitted all of them by row level security, so nothing here
+   * grants anything new; it is the same operations the function performs,
+   * driven from the client instead.
+   *
+   * The one thing this path cannot do is keep the person on the record,
+   * because the column that marks someone removed arrives with the same
+   * migration. It therefore deletes the profile, and the caller is told so —
+   * see removePersonFallback.
+   */
+  if (error && (error.code === 'PGRST202' || /could not find the function/i.test(error.message))) {
+    return removePersonFallback(userId, reassignTo)
+  }
+
   raise(error)
   return data ?? 0
+}
+
+/** Set when removal had to fall back, so the interface can say what happened. */
+export let lastRemovalLostHistory = false
+
+/**
+ * Removal without migration 0016, using only writes an owner already has.
+ *
+ * Deliberately ordered so the recoverable work happens first: if deleting the
+ * profile fails, their jobs have still been handed over rather than left
+ * pointing at somebody halfway removed.
+ */
+async function removePersonFallback(userId: string, reassignTo: string | null): Promise<number> {
+  const supabase = requireBrowserClient()
+  lastRemovalLostHistory = false
+
+  const { data: target, error: targetError } = await supabase
+    .from('profiles')
+    .select('id, role, reports_to')
+    .eq('id', userId)
+    .single()
+  raise(targetError)
+  if (!target) throw new Error('That person is not in this company.')
+
+  const { data: me } = await supabase.auth.getUser()
+  if (me?.user?.id === userId) {
+    throw new Error('You cannot remove yourself. Ask another owner to do it.')
+  }
+
+  if (target.role === 'admin') {
+    const { count } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'admin')
+      .neq('id', userId)
+    if ((count ?? 0) === 0) {
+      throw new Error('This is the only owner left. Make someone else an owner first.')
+    }
+  }
+
+  // Hand over the unfinished work first — this is the part that matters most
+  // if anything later goes wrong.
+  const { data: moved, error: moveError } = await supabase
+    .from('tasks')
+    .update({ assigned_to: reassignTo })
+    .eq('assigned_to', userId)
+    .neq('status', 'done')
+    .select('id')
+  raise(moveError)
+
+  const { error: reportsError } = await supabase
+    .from('profiles')
+    .update({ reports_to: target.reports_to })
+    .eq('reports_to', userId)
+  raise(reportsError)
+
+  await supabase.from('task_routines').update({ active: false }).eq('assigned_to', userId).eq('active', true)
+
+  const { error: deleteError } = await supabase.from('profiles').delete().eq('id', userId)
+  raise(deleteError)
+
+  lastRemovalLostHistory = true
+  return moved?.length ?? 0
 }
 
 export async function restorePerson(userId: string): Promise<void> {

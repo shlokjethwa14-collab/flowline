@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCurrentUser } from '@/hooks/use-flowline'
 import { useActiveProfiles, useRemovePerson, useTasks } from '@/lib/data/queries'
-import { friendlyError } from '@/lib/data/api'
+import { friendlyError, lastRemovalLostHistory } from '@/lib/data/api'
 import type { Profile } from '@/lib/types'
 
 const UNASSIGN = '__unassign__'
