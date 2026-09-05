@@ -408,6 +408,11 @@ export interface Database {
         Returns: string
       }
       /** True only while no profile exists — the one-time owner claim gate. */
+      /** Resolves a login ID to the address its account uses. Never null-signals. */
+      login_email: {
+        Args: { p_identifier: string }
+        Returns: string | null
+      }
       workspace_is_unclaimed: {
         Args: Record<string, never>
         Returns: boolean

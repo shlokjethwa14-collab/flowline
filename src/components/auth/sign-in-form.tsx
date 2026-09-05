@@ -64,9 +64,20 @@ export function SignInForm({ mode, unclaimed }: { mode: SignInMode; unclaimed: b
 
     setPhase({ at: 'signing' })
 
+    /*
+     * Resolve the login ID to the address the account actually uses, rather
+     * than deriving one. Deriving worked only while every account lived on
+     * the synthetic domain — an owner who registered with a recovery email
+     * has that as their identity, so the derived address pointed at nothing
+     * and sign-in failed for the one account that mattered most.
+     *
+     * login_email() always answers, returning the synthetic form for an
+     * unknown ID, so this cannot be used to discover who has an account.
+     */
+    const { data: resolved } = await supabase.rpc('login_email', { p_identifier: loginId })
+
     const { error } = await supabase.auth.signInWithPassword({
-      // A login ID becomes a synthetic address; a real one is used as typed.
-      email: credentialToEmail(loginId),
+      email: resolved ?? credentialToEmail(loginId),
       password,
     })
 
