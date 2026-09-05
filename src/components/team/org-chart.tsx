@@ -1,6 +1,6 @@
 'use client'
 
-import { Briefcase, Plus, ShieldCheck, UserMinus, UserPlus } from 'lucide-react'
+import { Briefcase, Plus, ShieldCheck, UserCog, UserMinus, UserPlus } from 'lucide-react'
 import { PersonAvatar } from '@/components/shared/person-avatar'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -21,6 +21,7 @@ function PersonNode({ node, isAdmin, emphasis = false }: PersonNodeProps) {
   const openAssign = useUIStore((s) => s.openAssign)
   const openAddPerson = useUIStore((s) => s.openAddPerson)
   const openRemovePerson = useUIStore((s) => s.openRemovePerson)
+  const openChangeRole = useUIStore((s) => s.openChangeRole)
   const { profile, activeCount } = node
 
   return (
@@ -112,6 +113,31 @@ function PersonNode({ node, isAdmin, emphasis = false }: PersonNodeProps) {
               </Button>
             </TooltipTrigger>
             <TooltipContent>Remove {profile.full_name.split(' ')[0]} from the team</TooltipContent>
+          </Tooltip>
+          {/* Promoting is the prerequisite for removing an owner: the last
+              one cannot be removed, so somebody else has to be made one
+              first. Without this the only route was the database. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon-sm"
+                variant="glass"
+                className="h-7 w-7"
+                onClick={() => openChangeRole(profile.id)}
+                aria-label={
+                  profile.role === 'admin'
+                    ? `Make ${profile.full_name} an employee`
+                    : `Make ${profile.full_name} an owner`
+                }
+              >
+                <UserCog className="!size-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {profile.role === 'admin'
+                ? `Make ${profile.full_name.split(' ')[0]} an employee`
+                : `Make ${profile.full_name.split(' ')[0]} an owner`}
+            </TooltipContent>
           </Tooltip>
         </div>
       )}

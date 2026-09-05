@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { subscribeDemo } from '@/lib/demo/store'
 import { getBrowserClient } from '@/lib/supabase/client'
 import { IS_DEMO } from '@/lib/supabase/env'
-import type {
+import type { Role,
   ActivityLog,
   AddEmployeeInput,
   CreateTaskInput,
@@ -535,4 +535,15 @@ export function useActiveProfiles() {
     ...query,
     data: React.useMemo(() => (query.data ?? []).filter((p) => !p.deactivated_at), [query.data]),
   }
+}
+
+export function useSetPersonRole() {
+  const client = useQueryClient()
+  return useMutation<void, Error, { userId: string; role: Role }>({
+    mutationFn: ({ userId, role }) => api.setPersonRole(userId, role),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: qk.profiles })
+    },
+    onError: (error) => toast.error(api.friendlyError(error)),
+  })
 }

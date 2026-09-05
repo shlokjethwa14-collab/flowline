@@ -5,6 +5,7 @@ import { CallRecorderDialog } from '@/components/calls/call-recorder-dialog'
 import { PageShell } from '@/components/motion/page-shell'
 import { AmbientField } from './ambient-field'
 import { AddPersonDialog } from '@/components/team/add-person-dialog'
+import { ChangeRoleDialog } from '@/components/team/change-role-dialog'
 import { RemovePersonDialog } from '@/components/team/remove-person-dialog'
 import { AssignWorkDialog } from '@/components/tasks/assign-work-dialog'
 import { TaskDetailsSheet } from '@/components/tasks/task-details-sheet'
@@ -76,6 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {isAdmin && <AssignWorkDialog />}
         {isAdmin && <AddPersonDialog />}
         {isAdmin && <RemovePersonTarget />}
+        {isAdmin && <ChangeRoleTarget />}
       </div>
     </>
   )
@@ -98,6 +100,23 @@ function RemovePersonTarget() {
       person={person}
       open={Boolean(removePersonId)}
       onOpenChange={(next) => !next && closeRemovePerson()}
+    />
+  )
+}
+
+/** Same pattern as RemovePersonTarget: one mounted dialog, id-driven. */
+function ChangeRoleTarget() {
+  const changeRolePersonId = useUIStore((s) => s.changeRolePersonId)
+  const closeChangeRole = useUIStore((s) => s.closeChangeRole)
+  const { data: profiles } = useProfiles()
+  const person = (profiles ?? []).find((p) => p.id === changeRolePersonId) ?? null
+
+  return (
+    <ChangeRoleDialog
+      key={changeRolePersonId ?? 'none'}
+      person={person}
+      open={Boolean(changeRolePersonId)}
+      onOpenChange={(next) => !next && closeChangeRole()}
     />
   )
 }

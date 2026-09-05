@@ -1,6 +1,7 @@
 'use client'
 
 import type {
+  Role,
   ActivityLog,
   CallCommitment,
   CallLog,
@@ -750,6 +751,25 @@ export function demoDeletePerson(userId: string): void {
     throw new Error('This person appears in work that already happened — remove them from the team instead.')
   }
   data.profiles = data.profiles.filter((p) => p.id !== userId)
+  persist()
+  notify()
+}
+
+/** Demo equivalent of set_person_role, including the last-owner guard. */
+export function demoSetPersonRole(userId: string, role: Role): void {
+  const data = ensure()
+  const target = data.profiles.find((p) => p.id === userId)
+  if (!target) throw new Error('That person is not in this company.')
+  if (target.role === role) return
+
+  if (target.role === 'admin' && role !== 'admin') {
+    const owners = data.profiles.filter((p) => p.role === 'admin' && !p.deactivated_at)
+    if (owners.length <= 1) {
+      throw new Error('This is the only owner. Make someone else an owner first, or the company would be locked out.')
+    }
+  }
+
+  target.role = role
   persist()
   notify()
 }

@@ -12,6 +12,7 @@ import type {
   CallIntel,
   CallLog,
   CreateTaskInput,
+  Role,
   Profile,
   SaveCallInput,
   SaveCategoryInput,
@@ -748,5 +749,25 @@ export async function deletePersonPermanently(userId: string): Promise<void> {
   const supabase = getBrowserClient()
   if (!supabase) throw new Error('Supabase is not configured.')
   const { error } = await supabase.rpc('delete_person_permanently', { p_user_id: userId })
+  raise(error)
+}
+
+/**
+ * Promotes someone to owner, or puts an owner back to employee.
+ *
+ * The database refuses to leave a company with no owners, so demoting the
+ * last one fails there rather than here — see the trigger in 0013. This is
+ * also the prerequisite for removing an owner at all: you cannot remove the
+ * only one, so somebody else has to be promoted first.
+ */
+export async function setPersonRole(userId: string, role: Role): Promise<void> {
+  if (IS_DEMO) {
+    demo.demoSetPersonRole(userId, role)
+    await tick(null)
+    return
+  }
+  const supabase = getBrowserClient()
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.rpc('set_person_role', { p_user_id: userId, p_role: role })
   raise(error)
 }
