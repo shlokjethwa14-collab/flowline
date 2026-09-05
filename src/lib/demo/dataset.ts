@@ -61,6 +61,8 @@ const PROFILES: Profile[] = [
     full_name: 'Rajesh Mehta',
     job_title: 'Owner',
     reports_to: null,
+    login_id: null,
+    deactivated_at: null,
     created_at: at(-400, '09:00'),
   },
   {
@@ -71,6 +73,8 @@ const PROFILES: Profile[] = [
     full_name: 'Anil Mehta',
     job_title: 'Managing Partner',
     reports_to: null,
+    login_id: null,
+    deactivated_at: null,
     created_at: at(-395, '09:00'),
   },
   {
@@ -79,6 +83,8 @@ const PROFILES: Profile[] = [
     full_name: 'Priya Shah',
     job_title: 'Production Manager',
     reports_to: DEMO_OWNER_ID,
+    login_id: null,
+    deactivated_at: null,
     created_at: at(-380, '09:00'),
   },
   {
@@ -87,6 +93,8 @@ const PROFILES: Profile[] = [
     full_name: 'Neha Kulkarni',
     job_title: 'Sales Manager',
     reports_to: DEMO_OWNER_ID,
+    login_id: null,
+    deactivated_at: null,
     created_at: at(-370, '09:00'),
   },
   {
@@ -95,6 +103,8 @@ const PROFILES: Profile[] = [
     full_name: 'Vikram Rao',
     job_title: 'Accounts Manager',
     reports_to: 'p-anil',
+    login_id: null,
+    deactivated_at: null,
     created_at: at(-360, '09:00'),
   },
   {
@@ -103,6 +113,8 @@ const PROFILES: Profile[] = [
     full_name: 'Imran Qureshi',
     job_title: 'Cutting Master',
     reports_to: 'p-priya',
+    login_id: null,
+    deactivated_at: null,
     created_at: at(-320, '09:00'),
   },
   {
@@ -111,6 +123,8 @@ const PROFILES: Profile[] = [
     full_name: 'Kavita Patil',
     job_title: 'Stock Coordinator',
     reports_to: 'p-priya',
+    login_id: null,
+    deactivated_at: null,
     created_at: at(-300, '09:00'),
   },
   {
@@ -119,6 +133,8 @@ const PROFILES: Profile[] = [
     full_name: 'Suresh Yadav',
     job_title: 'Dyeing & Dispatch In-charge',
     reports_to: 'p-priya',
+    login_id: null,
+    deactivated_at: null,
     created_at: at(-280, '09:00'),
   },
   {
@@ -127,6 +143,8 @@ const PROFILES: Profile[] = [
     full_name: 'Arjun Desai',
     job_title: 'Sales Executive',
     reports_to: 'p-neha',
+    login_id: null,
+    deactivated_at: null,
     created_at: at(-260, '09:00'),
   },
   {
@@ -135,6 +153,8 @@ const PROFILES: Profile[] = [
     full_name: 'Farida Sheikh',
     job_title: 'Sales Executive',
     reports_to: 'p-neha',
+    login_id: null,
+    deactivated_at: null,
     created_at: at(-240, '09:00'),
   },
   {
@@ -143,6 +163,8 @@ const PROFILES: Profile[] = [
     full_name: 'Meena Joshi',
     job_title: 'Data Entry Operator',
     reports_to: 'p-vikram',
+    login_id: null,
+    deactivated_at: null,
     created_at: at(-200, '09:00'),
   },
 ]

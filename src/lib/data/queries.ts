@@ -1,5 +1,6 @@
 'use client'
 
+import * as React from 'react'
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
@@ -484,3 +485,54 @@ export function useDeleteTask() {
 }
 
 export type { TaskHandoff }
+
+/**
+ * Removing someone from the team.
+ *
+ * Tasks are invalidated alongside profiles because removal moves their
+ * unfinished work — without it the board keeps showing those jobs against a
+ * person who is no longer there.
+ *
+ * The toast is raised by the dialog rather than here, so it can say how many
+ * jobs actually moved and where they went.
+ */
+export function useRemovePerson() {
+  const client = useQueryClient()
+  return useMutation<number, Error, { userId: string; reassignTo: string | null }>({
+    mutationFn: ({ userId, reassignTo }) => api.removePerson(userId, reassignTo),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: qk.profiles })
+      void client.invalidateQueries({ queryKey: qk.tasks })
+      void client.invalidateQueries({ queryKey: qk.routines })
+    },
+  })
+}
+
+export function useRestorePerson() {
+  const client = useQueryClient()
+  return useMutation<void, Error, string>({
+    mutationFn: (userId) => api.restorePerson(userId),
+    onSuccess: () => {
+      toast.success('They are back on the team.')
+      void client.invalidateQueries({ queryKey: qk.profiles })
+    },
+    onError: (error) => toast.error(api.friendlyError(error)),
+  })
+}
+
+/**
+ * The current team, for pickers and charts.
+ *
+ * Deliberately separate from `useProfiles`, which stays as everyone who has
+ * ever existed. Historical records name people by id, so resolving "who wrote
+ * this note" on a report from March still has to find someone who left in
+ * April — filtering them out of the lookup would blank those names, which is
+ * exactly what removal is designed to avoid.
+ */
+export function useActiveProfiles() {
+  const query = useProfiles()
+  return {
+    ...query,
+    data: React.useMemo(() => (query.data ?? []).filter((p) => !p.deactivated_at), [query.data]),
+  }
+}

@@ -32,6 +32,7 @@ export interface Database {
           /** What the person types to sign in. Null on rows predating 0014. */
           login_id: string | null
           reports_to: string | null
+          deactivated_at: string | null
           created_at: string
         }
         Insert: {
@@ -41,6 +42,7 @@ export interface Database {
           job_title?: string | null
           login_id?: string | null
           reports_to?: string | null
+          deactivated_at?: string | null
           created_at?: string
         }
         Update: {
@@ -50,6 +52,7 @@ export interface Database {
           job_title?: string | null
           login_id?: string | null
           reports_to?: string | null
+          deactivated_at?: string | null
           created_at?: string
         }
         Relationships: []
@@ -409,6 +412,18 @@ export interface Database {
       }
       /** True only while no profile exists — the one-time owner claim gate. */
       /** Resolves a login ID to the address its account uses. Never null-signals. */
+      deactivate_person: {
+        Args: { p_user_id: string; p_reassign_to?: string | null }
+        Returns: number
+      }
+      reactivate_person: {
+        Args: { p_user_id: string }
+        Returns: void
+      }
+      delete_person_permanently: {
+        Args: { p_user_id: string }
+        Returns: void
+      }
       login_email: {
         Args: { p_identifier: string }
         Returns: string | null

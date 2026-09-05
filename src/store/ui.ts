@@ -14,6 +14,8 @@ interface UIState {
   /** Add-teammate dialog; managerId preselects who they report to. */
   addPersonOpen: boolean
   addPersonManagerId: string | null
+  /** Who the remove dialog is about, or null when it is closed. */
+  removePersonId: string | null
   /** Call recorder; taskId ties the call to a job when opened from one. */
   callOpen: boolean
   callTaskId: string | null
@@ -32,6 +34,8 @@ interface UIState {
   openAssign: (assigneeId?: string | null) => void
   closeAssign: () => void
   openAddPerson: (managerId?: string | null) => void
+  openRemovePerson: (userId: string) => void
+  closeRemovePerson: () => void
   closeAddPerson: () => void
   openCall: (taskId?: string | null, counterparty?: string) => void
   closeCall: () => void
@@ -50,6 +54,7 @@ export const useUIStore = create<UIState>()(
       assignAssigneeId: null,
       addPersonOpen: false,
       addPersonManagerId: null,
+      removePersonId: null,
       callOpen: false,
       callTaskId: null,
       callCounterparty: '',
@@ -65,6 +70,8 @@ export const useUIStore = create<UIState>()(
       closeAssign: () => set({ assignOpen: false, assignAssigneeId: null }),
       openAddPerson: (managerId = null) => set({ addPersonOpen: true, addPersonManagerId: managerId }),
       closeAddPerson: () => set({ addPersonOpen: false, addPersonManagerId: null }),
+      openRemovePerson: (userId) => set({ removePersonId: userId }),
+      closeRemovePerson: () => set({ removePersonId: null }),
       openCall: (taskId = null, counterparty = '') =>
         set({ callOpen: true, callTaskId: taskId, callCounterparty: counterparty }),
       closeCall: () => set({ callOpen: false, callTaskId: null, callCounterparty: '' }),

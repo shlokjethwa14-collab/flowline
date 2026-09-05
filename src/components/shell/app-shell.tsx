@@ -5,10 +5,11 @@ import { CallRecorderDialog } from '@/components/calls/call-recorder-dialog'
 import { PageShell } from '@/components/motion/page-shell'
 import { AmbientField } from './ambient-field'
 import { AddPersonDialog } from '@/components/team/add-person-dialog'
+import { RemovePersonDialog } from '@/components/team/remove-person-dialog'
 import { AssignWorkDialog } from '@/components/tasks/assign-work-dialog'
 import { TaskDetailsSheet } from '@/components/tasks/task-details-sheet'
 import { useCurrentUser } from '@/hooks/use-flowline'
-import { useDayRollForward, useRealtimeSync } from '@/lib/data/queries'
+import { useDayRollForward, useProfiles, useRealtimeSync } from '@/lib/data/queries'
 import { useUIStore } from '@/store/ui'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
@@ -74,7 +75,29 @@ export function AppShell({ children }: { children: ReactNode }) {
       />
         {isAdmin && <AssignWorkDialog />}
         {isAdmin && <AddPersonDialog />}
+        {isAdmin && <RemovePersonTarget />}
       </div>
     </>
+  )
+}
+
+/**
+ * Resolves the id held in the UI store to the actual person, so the dialog
+ * can be mounted once here rather than per node in the chart.
+ */
+function RemovePersonTarget() {
+  const removePersonId = useUIStore((s) => s.removePersonId)
+  const closeRemovePerson = useUIStore((s) => s.closeRemovePerson)
+  const { data: profiles } = useProfiles()
+  const person = (profiles ?? []).find((p) => p.id === removePersonId) ?? null
+
+  return (
+    <RemovePersonDialog
+      // Remounts per person, so the reassign picker starts clean each time.
+      key={removePersonId ?? 'none'}
+      person={person}
+      open={Boolean(removePersonId)}
+      onOpenChange={(next) => !next && closeRemovePerson()}
+    />
   )
 }

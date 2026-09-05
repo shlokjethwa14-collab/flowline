@@ -698,3 +698,55 @@ async function addEmployeeFromBrowser(input: AddEmployeeInput): Promise<Profile>
   if (!profile) throw new Error('The account was created but its profile could not be found.')
   return profile
 }
+
+/**
+ * Takes someone off the team.
+ *
+ * Deliberately not a delete. Every table that names a person does it with ON
+ * DELETE SET NULL, so removing the row would go back through the record and
+ * blank who did what — yesterday's report would keep its numbers and lose the
+ * names. See migration 0016.
+ *
+ * Returns how many unfinished jobs moved, so the confirmation can say what
+ * actually happened rather than just "done".
+ */
+export async function removePerson(userId: string, reassignTo: string | null): Promise<number> {
+  if (IS_DEMO) return tick(demo.demoRemovePerson(userId, reassignTo))
+  const supabase = getBrowserClient()
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { data, error } = await supabase.rpc('deactivate_person', {
+    p_user_id: userId,
+    p_reassign_to: reassignTo ?? undefined,
+  })
+  raise(error)
+  return data ?? 0
+}
+
+export async function restorePerson(userId: string): Promise<void> {
+  if (IS_DEMO) {
+    demo.demoRestorePerson(userId)
+    await tick(null)
+    return
+  }
+  const supabase = getBrowserClient()
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.rpc('reactivate_person', { p_user_id: userId })
+  raise(error)
+}
+
+/**
+ * Deletes an account outright. Only succeeds for someone who has done nothing
+ * at all — the database refuses the rest, because deleting them would rewrite
+ * work that already happened.
+ */
+export async function deletePersonPermanently(userId: string): Promise<void> {
+  if (IS_DEMO) {
+    demo.demoDeletePerson(userId)
+    await tick(null)
+    return
+  }
+  const supabase = getBrowserClient()
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { error } = await supabase.rpc('delete_person_permanently', { p_user_id: userId })
+  raise(error)
+}

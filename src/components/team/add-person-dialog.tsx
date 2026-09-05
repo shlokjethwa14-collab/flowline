@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCurrentUser } from '@/hooks/use-flowline'
 import { generatePassword } from '@/lib/accounts'
-import { useAddEmployee, useProfiles } from '@/lib/data/queries'
+import { useActiveProfiles, useAddEmployee } from '@/lib/data/queries'
 import type { Role } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { addEmployeeSchema, type AddEmployeeValues } from '@/lib/validators'
@@ -41,7 +41,7 @@ export function AddPersonDialog() {
   const close = useUIStore((s) => s.closeAddPerson)
 
   const { isAdmin, isDemo } = useCurrentUser()
-  const { data: profiles } = useProfiles()
+  const { data: profiles } = useActiveProfiles()
   const addEmployee = useAddEmployee()
 
   const form = useForm<AddEmployeeValues>({

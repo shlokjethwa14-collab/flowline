@@ -93,7 +93,9 @@ export function useOrgTree(): { roots: OrgNode[]; orphans: OrgNode[]; isLoading:
   const { data: tasks, isLoading: tasksLoading } = useTasks()
 
   return useMemo(() => {
-    const people = profiles ?? []
+    // Removed people keep their history but leave the chart and every
+    // picker — see migration 0016.
+    const people = (profiles ?? []).filter((p) => !p.deactivated_at)
     const allTasks = tasks ?? []
 
     const activeByPerson = new Map<string, number>()

@@ -663,7 +663,9 @@ export function demoAddEmployee(input: AddEmployeeInput): Profile {
     role: input.role,
     full_name: input.full_name.trim(),
     job_title: input.job_title.trim(),
+    login_id: input.login_id?.trim().toLowerCase() ?? null,
     reports_to: input.reports_to,
+    deactivated_at: null,
     created_at: new Date().toISOString(),
   }
   data.profiles.push(profile)
@@ -699,3 +701,55 @@ export function demoDeleteTask(taskId: string): void {
 }
 
 export { DEMO_EMPLOYEE_ID, DEMO_OWNER_ID }
+
+/** Demo equivalent of deactivate_person: same rules, in memory. */
+export function demoRemovePerson(userId: string, reassignTo: string | null): number {
+  const data = ensure()
+  const target = data.profiles.find((p) => p.id === userId)
+  if (!target) throw new Error('That person is not in this company.')
+  if (target.deactivated_at) return 0
+  if (userId === previewUserId) throw new Error('You cannot remove yourself. Ask another owner to do it.')
+  if (target.role === 'admin' && data.profiles.filter((p) => p.role === 'admin' && !p.deactivated_at).length <= 1) {
+    throw new Error('This is the only owner left. Make someone else an owner first.')
+  }
+
+  let moved = 0
+  for (const task of data.tasks) {
+    if (task.assigned_to === userId && task.status !== 'done') {
+      task.assigned_to = reassignTo
+      moved += 1
+    }
+  }
+  for (const person of data.profiles) {
+    if (person.reports_to === userId) person.reports_to = target.reports_to
+  }
+  for (const routine of data.routines) {
+    if (routine.assigned_to === userId) routine.active = false
+  }
+  target.deactivated_at = new Date().toISOString()
+  persist()
+  notify()
+  return moved
+}
+
+export function demoRestorePerson(userId: string): void {
+  const data = ensure()
+  const target = data.profiles.find((p) => p.id === userId)
+  if (target) target.deactivated_at = null
+  persist()
+  notify()
+}
+
+export function demoDeletePerson(userId: string): void {
+  const data = ensure()
+  const used =
+    data.tasks.some((t) => t.assigned_to === userId || t.created_by === userId) ||
+    data.activity.some((a) => a.user_id === userId) ||
+    data.handoffs.some((h) => h.from_user_id === userId || h.to_user_id === userId)
+  if (used) {
+    throw new Error('This person appears in work that already happened — remove them from the team instead.')
+  }
+  data.profiles = data.profiles.filter((p) => p.id !== userId)
+  persist()
+  notify()
+}

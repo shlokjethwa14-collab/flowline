@@ -115,7 +115,14 @@ export interface Profile {
   role: Role
   full_name: string
   job_title: string | null
+  /** What they type to sign in. Null on rows created before login IDs. */
+  login_id: string | null
   reports_to: string | null
+  /**
+   * Set when someone is removed from the team. Their history stays intact —
+   * see migration 0016 for why removal is a state rather than a deletion.
+   */
+  deactivated_at: string | null
   created_at: string
 }
 

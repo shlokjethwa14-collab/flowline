@@ -1,6 +1,6 @@
 'use client'
 
-import { Briefcase, Plus, ShieldCheck, UserPlus } from 'lucide-react'
+import { Briefcase, Plus, ShieldCheck, UserMinus, UserPlus } from 'lucide-react'
 import { PersonAvatar } from '@/components/shared/person-avatar'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -20,6 +20,7 @@ interface PersonNodeProps {
 function PersonNode({ node, isAdmin, emphasis = false }: PersonNodeProps) {
   const openAssign = useUIStore((s) => s.openAssign)
   const openAddPerson = useUIStore((s) => s.openAddPerson)
+  const openRemovePerson = useUIStore((s) => s.openRemovePerson)
   const { profile, activeCount } = node
 
   return (
@@ -97,6 +98,20 @@ function PersonNode({ node, isAdmin, emphasis = false }: PersonNodeProps) {
               </Button>
             </TooltipTrigger>
             <TooltipContent>Add someone under {profile.full_name.split(' ')[0]}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon-sm"
+                variant="glass"
+                className="h-7 w-7"
+                onClick={() => openRemovePerson(profile.id)}
+                aria-label={`Remove ${profile.full_name} from the team`}
+              >
+                <UserMinus className="!size-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Remove {profile.full_name.split(' ')[0]} from the team</TooltipContent>
           </Tooltip>
         </div>
       )}

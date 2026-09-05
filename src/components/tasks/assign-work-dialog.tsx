@@ -35,7 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCurrentUser } from '@/hooks/use-flowline'
-import { useCategories, useCreateTask, useDraftWorkPlan, useProfiles } from '@/lib/data/queries'
+import { useActiveProfiles, useCategories, useCreateTask, useDraftWorkPlan } from '@/lib/data/queries'
 import { CATEGORY_ICONS, categoryStyles, checklistTemplate, TASK_TYPES, taskTypeMeta } from '@/lib/task-meta'
 import type { TaskCategory, TaskType } from '@/lib/types'
 import { cn, combineDayAndTime, humanMinutes, todayKey, uid } from '@/lib/utils'
@@ -68,7 +68,7 @@ export function AssignWorkDialog() {
 
   const open = assignOpen || quickAddOpen
   const { isAdmin } = useCurrentUser()
-  const { data: profiles } = useProfiles()
+  const { data: profiles } = useActiveProfiles()
   const { data: categories } = useCategories()
   const createTask = useCreateTask()
   const draft = useDraftWorkPlan()
