@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCurrentUser } from '@/hooks/use-flowline'
+import { generatePassword } from '@/lib/accounts'
 import { useAddEmployee, useProfiles } from '@/lib/data/queries'
 import type { Role } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -45,13 +46,15 @@ export function AddPersonDialog() {
 
   const form = useForm<AddEmployeeValues>({
     resolver: zodResolver(addEmployeeSchema),
-    defaultValues: { full_name: '', job_title: '', email: '', reports_to: managerId, role: 'employee' },
+    defaultValues: { full_name: '', job_title: '', login_id: '', password: generatePassword(), reports_to: managerId, role: 'employee' },
     mode: 'onChange',
   })
 
   useEffect(() => {
     if (open) {
-      form.reset({ full_name: '', job_title: '', email: '', reports_to: managerId, role: 'employee' })
+      // A fresh password each time the dialog opens, so an owner adding
+      // three people in a row does not give all three the same one.
+      form.reset({ full_name: '', job_title: '', login_id: '', password: generatePassword(), reports_to: managerId, role: 'employee' })
     }
   }, [open, managerId, form])
 
@@ -67,7 +70,8 @@ export function AddPersonDialog() {
       {
         full_name: values.full_name.trim(),
         job_title: values.job_title.trim(),
-        email: values.email.trim(),
+        login_id: values.login_id.trim().toLowerCase(),
+        password: values.password,
         reports_to: values.reports_to,
         role: values.role,
       },
@@ -87,8 +91,8 @@ export function AddPersonDialog() {
           </DialogTitle>
           <DialogDescription>
             {isDemo
-              ? 'They appear on the chart straight away. In demo mode nothing is emailed.'
-              : 'They get a sign-in link by email and appear on the chart straight away.'}
+              ? 'They appear on the chart straight away. Nothing is sent anywhere.'
+              : 'Give them the login ID and password below. Nothing is emailed — Flowline sends no mail at all.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -131,19 +135,61 @@ export function AddPersonDialog() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="person-email">Work email</Label>
+            <Label htmlFor="person-login-id">Login ID</Label>
             <Input
-              id="person-email"
-              type="email"
-              inputMode="email"
+              id="person-login-id"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               autoComplete="off"
-              placeholder="kavita@yourcompany.com"
-              aria-invalid={Boolean(form.formState.errors.email)}
-              {...form.register('email')}
+              placeholder="kavita"
+              aria-invalid={Boolean(form.formState.errors.login_id)}
+              aria-describedby={form.formState.errors.login_id ? 'person-login-id-error' : 'person-login-id-hint'}
+              {...form.register('login_id')}
             />
-            {form.formState.errors.email && (
-              <p role="alert" className="text-[12px] text-red-600">
-                {form.formState.errors.email.message}
+            {form.formState.errors.login_id ? (
+              <p id="person-login-id-error" role="alert" className="text-[12px] text-red-600">
+                {form.formState.errors.login_id.message}
+              </p>
+            ) : (
+              <p id="person-login-id-hint" className="text-[11.5px] text-zinc-500">
+                What they type to sign in. No email needed.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="person-password">Password</Label>
+              {/* Generated rather than typed: an owner inventing twenty
+                  passwords produces twenty variations of the company name. */}
+              <Button
+                type="button"
+                variant="glass"
+                size="sm"
+                onClick={() => form.setValue('password', generatePassword(), { shouldValidate: true })}
+              >
+                Generate
+              </Button>
+            </div>
+            <Input
+              id="person-password"
+              // Shown, not masked: the owner has to read this out or write it
+              // down. A masked field they cannot check is how the wrong
+              // password gets handed over.
+              type="text"
+              autoComplete="off"
+              aria-invalid={Boolean(form.formState.errors.password)}
+              aria-describedby={form.formState.errors.password ? 'person-password-error' : 'person-password-hint'}
+              {...form.register('password')}
+            />
+            {form.formState.errors.password ? (
+              <p id="person-password-error" role="alert" className="text-[12px] text-red-600">
+                {form.formState.errors.password.message}
+              </p>
+            ) : (
+              <p id="person-password-hint" className="text-[11.5px] text-zinc-500">
+                Give this to them directly. You can change it later; they cannot reset it themselves.
               </p>
             )}
           </div>

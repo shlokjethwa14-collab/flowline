@@ -72,7 +72,24 @@ export type NoteValues = z.infer<typeof noteSchema>
 export const addEmployeeSchema = z.object({
   full_name: z.string().trim().min(2, 'Enter the person’s name.').max(80, 'That name is too long.'),
   job_title: z.string().trim().min(2, 'What do they do?').max(80, 'Keep the job title short.'),
-  email: z.string().trim().min(1, 'Enter their work email so they can sign in.').email('That email does not look right.'),
+  /*
+   * A login ID the owner issues, not an email the person has to own. Most of
+   * the people using Flowline are on a factory floor and have no work email,
+   * so asking for one asked for something that does not exist — and Supabase
+   * then tried to post a confirmation to it.
+   *
+   * The shape is enforced in three places: here, the CHECK constraint in
+   * migration 0014, and the edge function. loginIdProblem() in lib/accounts
+   * carries the same rules with the wording used on screen.
+   */
+  login_id: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(3, 'A login ID needs at least 3 characters.')
+    .max(31, 'A login ID can be at most 31 characters.')
+    .regex(/^[a-z0-9][a-z0-9._-]*$/, 'Lowercase letters, numbers, dot, underscore or hyphen only.'),
+  password: z.string().min(10, 'A password needs at least 10 characters.'),
   reports_to: z.string().nullable(),
   role: z.enum(ROLE_VALUES),
 })

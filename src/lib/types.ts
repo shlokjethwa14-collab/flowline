@@ -259,7 +259,10 @@ export interface SaveCategoryInput {
 export interface AddEmployeeInput {
   full_name: string
   job_title: string
-  email?: string | null
+  /** What they type to sign in. Flowline no longer uses email addresses. */
+  login_id: string
+  /** Set by the owner and handed over directly; never emailed. */
+  password: string
   reports_to: string | null
   role: Role
 }

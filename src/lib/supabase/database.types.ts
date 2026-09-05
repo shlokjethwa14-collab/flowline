@@ -29,6 +29,8 @@ export interface Database {
           role: Role
           full_name: string
           job_title: string | null
+          /** What the person types to sign in. Null on rows predating 0014. */
+          login_id: string | null
           reports_to: string | null
           created_at: string
         }
@@ -37,6 +39,7 @@ export interface Database {
           role?: Role
           full_name?: string
           job_title?: string | null
+          login_id?: string | null
           reports_to?: string | null
           created_at?: string
         }
@@ -45,6 +48,7 @@ export interface Database {
           role?: Role
           full_name?: string
           job_title?: string | null
+          login_id?: string | null
           reports_to?: string | null
           created_at?: string
         }

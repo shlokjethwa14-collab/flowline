@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAdminClient } from '@/lib/supabase/admin'
 import { hasSupabaseConfig } from '@/lib/supabase/env'
 import { getServerClient, getServerProfile } from '@/lib/supabase/server'
+import { ACCOUNT_DOMAIN } from '@/lib/accounts'
 import { addEmployeeSchema } from '@/lib/validators'
 
 export const dynamic = 'force-dynamic'
@@ -57,26 +58,33 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Send the sign-in invitation. An existing user is not an error — we just
-  // update their profile instead of creating a second account.
-  let userId: string | null = null
-  const origin = request.nextUrl.origin
-  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(input.email, {
-    redirectTo: `${origin}/auth/callback`,
+  /*
+   * Create the account outright rather than emailing an invitation.
+   *
+   * `inviteUserByEmail` posted a link to an address the person had to own.
+   * Nobody on a factory floor has a work email, so that link went to a made-up
+   * address, was never opened, and — once login IDs arrived — was sent to a
+   * domain with no mailbox at all, which is what exhausted the project's mail
+   * allowance and produced "email rate limit exceeded".
+   *
+   * `email_confirm: true` is what stops any mail being sent: the address is
+   * marked verified at creation, because there is nothing to verify. The
+   * owner handing over the credential in person is what stands in for it.
+   */
+  const loginId = input.login_id.trim().toLowerCase()
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email: `${loginId}@${ACCOUNT_DOMAIN}`,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: { full_name: input.full_name, job_title: input.job_title, login_id: loginId },
   })
 
-  if (inviteError) {
-    const alreadyExists = /already been registered|already exists|email_exists/i.test(inviteError.message)
-    if (!alreadyExists) {
-      return fail(inviteError.message, 400)
-    }
-    const { data: list, error: listError } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
-    if (listError) return fail(listError.message, 500)
-    userId = list.users.find((u) => u.email?.toLowerCase() === input.email.toLowerCase())?.id ?? null
-    if (!userId) return fail('That email is already registered but the account could not be found.', 409)
-  } else {
-    userId = invited.user?.id ?? null
+  if (createError) {
+    const taken = /already been registered|already exists|email_exists|duplicate/i.test(createError.message)
+    return fail(taken ? 'That login ID is already taken.' : createError.message, taken ? 409 : 400)
   }
+
+  const userId = created.user?.id ?? null
 
   if (!userId) return fail('The account could not be created.', 500)
 
@@ -88,6 +96,7 @@ export async function POST(request: NextRequest) {
         id: userId,
         full_name: input.full_name,
         job_title: input.job_title,
+        login_id: input.login_id.trim().toLowerCase(),
         reports_to: input.reports_to,
         role: input.role,
       },
