@@ -1,7 +1,8 @@
 'use client'
 
 import type { PostgrestError } from '@supabase/supabase-js'
-import { getBrowserClient } from '@/lib/supabase/client'
+import { ACCOUNT_DOMAIN } from '@/lib/accounts'
+import { createIsolatedClient, getBrowserClient } from '@/lib/supabase/client'
 import { IS_DEMO } from '@/lib/supabase/env'
 import * as demo from '@/lib/demo/store'
 import type {
@@ -568,7 +569,7 @@ export async function handoffTask(taskId: string, toUserId: string, note: string
 
 export async function addEmployee(input: AddEmployeeInput): Promise<Profile> {
   if (IS_DEMO) return tick(demo.demoAddEmployee(input))
-  if (STATIC_EXPORT) needsServer('Adding a teammate')
+  if (STATIC_EXPORT) return addEmployeeFromBrowser(input)
   const response = await fetch('/api/team/invite', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -625,4 +626,75 @@ export async function signOut(): Promise<void> {
   const supabase = getBrowserClient()
   if (!supabase) return
   await supabase.auth.signOut()
+}
+
+/**
+ * Creating a teammate without a server.
+ *
+ * The hosted app does this through `/api/team/invite`, which holds the
+ * service role key. A static deployment has no server, so that route does not
+ * exist — which is why adding anyone failed with "it needs the full Flowline
+ * server".
+ *
+ * With confirmation emails switched off, an ordinary sign-up produces a
+ * usable account straight away, so the work can happen here instead. Two
+ * details make it safe:
+ *
+ *   * The sign-up runs on a throwaway client that persists nothing, so the
+ *     owner's own session is untouched. On the shared client they would be
+ *     silently swapped into the account they had just created.
+ *   * The profile is then filled in by the *owner's* client, not the new
+ *     one. Role, manager and job title are all guarded by
+ *     protect_profile_columns, which only an admin may satisfy — so an
+ *     employee cannot promote themselves by repeating this call.
+ *
+ * The account row itself is written by handle_new_user() the moment the
+ * auth user exists; this only completes it.
+ */
+async function addEmployeeFromBrowser(input: AddEmployeeInput): Promise<Profile> {
+  const transient = createIsolatedClient()
+  const owner = getBrowserClient()
+  if (!transient || !owner) throw new Error('Supabase is not configured.')
+
+  const loginId = input.login_id.trim().toLowerCase()
+
+  const { data: created, error: signUpError } = await transient.auth.signUp({
+    email: `${loginId}@${ACCOUNT_DOMAIN}`,
+    password: input.password,
+    options: { data: { full_name: input.full_name, job_title: input.job_title, login_id: loginId } },
+  })
+
+  if (signUpError) {
+    const taken = /already|registered|duplicate/i.test(signUpError.message)
+    throw new Error(
+      taken
+        ? `The login ID "${loginId}" is already taken. Choose another.`
+        : signUpError.message,
+    )
+  }
+
+  const userId = created.user?.id
+  if (!userId) {
+    throw new Error('The account was not created. Check that sign-ups are still enabled for this project.')
+  }
+
+  // Sign the throwaway session out so no trace of it is left behind.
+  await transient.auth.signOut().catch(() => undefined)
+
+  const { data: profile, error: profileError } = await owner
+    .from('profiles')
+    .update({
+      full_name: input.full_name,
+      job_title: input.job_title,
+      login_id: loginId,
+      reports_to: input.reports_to,
+      role: input.role,
+    })
+    .eq('id', userId)
+    .select('*')
+    .single()
+
+  if (profileError) throw new Error(profileError.message)
+  if (!profile) throw new Error('The account was created but its profile could not be found.')
+  return profile
 }
