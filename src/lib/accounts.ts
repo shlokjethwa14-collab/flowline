@@ -25,6 +25,43 @@ export function emailForLoginId(loginId: string): string {
   return `${normaliseLoginId(loginId)}@${ACCOUNT_DOMAIN}`
 }
 
+/**
+ * What Supabase should be given for whatever someone typed into the sign-in
+ * box.
+ *
+ * Staff type a login ID and never see an address. The owner may instead have
+ * a real one, because the very first account is the one case where a
+ * deliverable mailbox is worth having: it is the only account nobody else can
+ * reset the password for, and without it a forgotten owner password means
+ * recovering the project from the Supabase dashboard.
+ *
+ * An "@" is the whole test. Login IDs cannot contain one — the shape
+ * constraint forbids it — so the two can never be confused.
+ */
+export function credentialToEmail(identifier: string): string {
+  const trimmed = identifier.trim().toLowerCase()
+  return trimmed.includes('@') ? trimmed : emailForLoginId(trimmed)
+}
+
+/** True when what was typed looks like an address rather than a login ID. */
+export function looksLikeEmail(identifier: string): boolean {
+  return identifier.trim().includes('@')
+}
+
+/**
+ * Accepts either form. The login ID rules still apply to login IDs; an
+ * address only has to be minimally plausible, because the real check is
+ * whether the sign-in succeeds.
+ */
+export function identifierProblem(raw: string): string | null {
+  const value = raw.trim()
+  if (value.length === 0) return 'Enter your login ID.'
+  if (looksLikeEmail(value)) {
+    return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value) ? null : 'That email address does not look right.'
+  }
+  return loginIdProblem(value)
+}
+
 /** Trim and lowercase, so "  Suresh " and "suresh" are the same person. */
 export function normaliseLoginId(raw: string): string {
   return raw.trim().toLowerCase()

@@ -5,7 +5,13 @@ import * as React from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { emailForLoginId, loginIdProblem, MIN_PASSWORD_LENGTH, normaliseLoginId } from '@/lib/accounts'
+import {
+  credentialToEmail,
+  identifierProblem,
+  loginIdProblem,
+  MIN_PASSWORD_LENGTH,
+  normaliseLoginId,
+} from '@/lib/accounts'
 import { getBrowserClient } from '@/lib/supabase/client'
 
 /**
@@ -35,8 +41,8 @@ export function SignInForm({ mode, unclaimed }: { mode: SignInMode; unclaimed: b
   const [touched, setTouched] = React.useState(false)
   const [phase, setPhase] = React.useState<Phase>({ at: 'idle' })
 
-  const idProblem = touched ? loginIdProblem(loginId) : null
-  const canSubmit = loginIdProblem(loginId) === null && password.length > 0 && phase.at !== 'signing'
+  const idProblem = touched ? identifierProblem(loginId) : null
+  const canSubmit = identifierProblem(loginId) === null && password.length > 0 && phase.at !== 'signing'
 
   /**
    * The first account is created by claiming, not by signing in. Only offered
@@ -48,7 +54,7 @@ export function SignInForm({ mode, unclaimed }: { mode: SignInMode; unclaimed: b
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
     setTouched(true)
-    if (loginIdProblem(loginId) !== null) return
+    if (identifierProblem(loginId) !== null) return
 
     const supabase = getBrowserClient()
     if (!supabase) {
@@ -59,7 +65,8 @@ export function SignInForm({ mode, unclaimed }: { mode: SignInMode; unclaimed: b
     setPhase({ at: 'signing' })
 
     const { error } = await supabase.auth.signInWithPassword({
-      email: emailForLoginId(loginId),
+      // A login ID becomes a synthetic address; a real one is used as typed.
+      email: credentialToEmail(loginId),
       password,
     })
 
@@ -105,7 +112,7 @@ export function SignInForm({ mode, unclaimed }: { mode: SignInMode; unclaimed: b
           {mode === 'owner' ? 'Owner sign-in' : 'Sign in'}
         </h2>
         <p className="text-[13.5px] leading-relaxed text-ink-muted">
-          Use the login ID and password your owner gave you.
+          Use the login ID and password your owner gave you. Owners may use their email instead.
         </p>
       </div>
 
@@ -189,12 +196,18 @@ function ClaimOwnerForm() {
   const [loginId, setLoginId] = React.useState('')
   const [password, setPassword] = React.useState('')
   const [fullName, setFullName] = React.useState('')
+  const [recoveryEmail, setRecoveryEmail] = React.useState('')
   const [phase, setPhase] = React.useState<Phase>({ at: 'idle' })
 
   const idProblem = loginId ? loginIdProblem(loginId) : null
+  const emailProblem =
+    recoveryEmail.trim().length > 0 && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recoveryEmail.trim())
+      ? 'That email address does not look right.'
+      : null
   const shortPassword = password.length > 0 && password.length < MIN_PASSWORD_LENGTH
   const canSubmit =
     loginIdProblem(loginId) === null &&
+    emailProblem === null &&
     password.length >= MIN_PASSWORD_LENGTH &&
     fullName.trim().length >= 2 &&
     phase.at !== 'signing'
@@ -204,9 +217,31 @@ function ClaimOwnerForm() {
     const supabase = getBrowserClient()
     if (!supabase) return
 
+    /*
+     * The owner may register against a real address instead of the synthetic
+     * one, and it matters for two separate reasons.
+     *
+     * Recovery: this is the only account nobody else can reset the password
+     * for. Without a reachable address, a forgotten owner password means
+     * repairing the project from the Supabase dashboard.
+     *
+     * Delivery: while a project has "Confirm email" switched on, Supabase
+     * posts a confirmation on sign-up. Sent to a synthetic address it can
+     * never arrive, and the attempts exhaust the project's mail allowance —
+     * which is what produced "email rate limit exceeded". A real address
+     * makes that message deliverable, so the account can be created without
+     * touching the project's configuration.
+     *
+     * Staff never see this. They are created by the owner with
+     * `email_confirm` already set, so no mail is sent for them at all.
+     */
+    const identifier = recoveryEmail.trim()
+      ? recoveryEmail.trim().toLowerCase()
+      : credentialToEmail(loginId)
+
     setPhase({ at: 'signing' })
     const { error } = await supabase.auth.signUp({
-      email: emailForLoginId(loginId),
+      email: identifier,
       password,
       options: { data: { full_name: fullName.trim(), login_id: normaliseLoginId(loginId) } },
     })
@@ -285,6 +320,33 @@ function ClaimOwnerForm() {
             At least {MIN_PASSWORD_LENGTH} characters. Shown as you type, because nobody else is looking at your screen
             during setup.
           </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="claim-email">
+            Recovery email <span className="font-normal text-ink-faint">— owner only</span>
+          </Label>
+          <Input
+            id="claim-email"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="you@gmail.com"
+            value={recoveryEmail}
+            onChange={(e) => setRecoveryEmail(e.target.value)}
+            aria-invalid={Boolean(emailProblem)}
+            aria-describedby={emailProblem ? 'claim-email-error' : 'claim-email-hint'}
+          />
+          {emailProblem ? (
+            <p id="claim-email-error" role="alert" className="text-[12px] text-red-500">
+              {emailProblem}
+            </p>
+          ) : (
+            <p id="claim-email-hint" className="text-[11.5px] leading-relaxed text-ink-faint">
+              Strongly recommended. Yours is the one account nobody else can reset — without an address here, a
+              forgotten password means repairing the project by hand. Your staff never need one.
+            </p>
+          )}
         </div>
 
         {phase.at === 'error' && (
