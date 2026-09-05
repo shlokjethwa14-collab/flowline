@@ -547,3 +547,14 @@ export function useSetPersonRole() {
     onError: (error) => toast.error(api.friendlyError(error)),
   })
 }
+
+export function useUpdatePersonDetails() {
+  const client = useQueryClient()
+  return useMutation<Profile, Error, { userId: string; full_name: string; job_title: string }>({
+    mutationFn: ({ userId, full_name, job_title }) => api.updatePersonDetails(userId, { full_name, job_title }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: qk.profiles })
+    },
+    onError: (error) => toast.error(api.friendlyError(error)),
+  })
+}

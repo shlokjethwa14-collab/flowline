@@ -5,7 +5,7 @@ import { CallRecorderDialog } from '@/components/calls/call-recorder-dialog'
 import { PageShell } from '@/components/motion/page-shell'
 import { AmbientField } from './ambient-field'
 import { AddPersonDialog } from '@/components/team/add-person-dialog'
-import { ChangeRoleDialog } from '@/components/team/change-role-dialog'
+import { EditPersonDialog } from '@/components/team/edit-person-dialog'
 import { RemovePersonDialog } from '@/components/team/remove-person-dialog'
 import { AssignWorkDialog } from '@/components/tasks/assign-work-dialog'
 import { TaskDetailsSheet } from '@/components/tasks/task-details-sheet'
@@ -112,7 +112,7 @@ function ChangeRoleTarget() {
   const person = (profiles ?? []).find((p) => p.id === changeRolePersonId) ?? null
 
   return (
-    <ChangeRoleDialog
+    <EditPersonDialog
       key={changeRolePersonId ?? 'none'}
       person={person}
       open={Boolean(changeRolePersonId)}

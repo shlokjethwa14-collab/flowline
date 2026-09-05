@@ -771,3 +771,28 @@ export async function setPersonRole(userId: string, role: Role): Promise<void> {
   const { error } = await supabase.rpc('set_person_role', { p_user_id: userId, p_role: role })
   raise(error)
 }
+
+/**
+ * Updates a person's name and designation.
+ *
+ * Role is deliberately not settable here: it goes through set_person_role, so
+ * the last-owner rule lives in one place and the refusal can name the
+ * situation rather than surfacing a constraint.
+ */
+export async function updatePersonDetails(
+  userId: string,
+  input: { full_name: string; job_title: string },
+): Promise<Profile> {
+  if (IS_DEMO) return tick(demo.demoUpdatePerson(userId, input))
+  const supabase = getBrowserClient()
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ full_name: input.full_name.trim(), job_title: input.job_title.trim() || null })
+    .eq('id', userId)
+    .select('*')
+    .single()
+  raise(error)
+  if (!data) throw new Error('That person is no longer here.')
+  return data
+}

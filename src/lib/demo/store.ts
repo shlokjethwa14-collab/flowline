@@ -773,3 +773,14 @@ export function demoSetPersonRole(userId: string, role: Role): void {
   persist()
   notify()
 }
+
+export function demoUpdatePerson(userId: string, input: { full_name: string; job_title: string }): Profile {
+  const data = ensure()
+  const target = data.profiles.find((p) => p.id === userId)
+  if (!target) throw new Error('That person is no longer here.')
+  target.full_name = input.full_name.trim()
+  target.job_title = input.job_title.trim() || null
+  persist()
+  notify()
+  return target
+}
