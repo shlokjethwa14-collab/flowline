@@ -36,6 +36,8 @@ create table if not exists auth.users (
   -- Supabase stamps this when a magic link or invite is followed. Flowline
   -- reads it to tell a verified address from an invited-but-unconfirmed one.
   email_confirmed_at  timestamptz default now(),
+  -- Shown on the owner's account list.
+  last_sign_in_at     timestamptz,
   created_at          timestamptz not null default now()
 );
 

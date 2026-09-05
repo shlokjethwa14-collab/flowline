@@ -22,6 +22,8 @@ export default tseslint.config(
       // meaningless errors.
       '.landing-build/**',
       'landing-out/**',
+      // Deno edge functions: a different runtime and a different tsconfig.
+      'supabase/functions/**',
     ],
   },
   js.configs.recommended,

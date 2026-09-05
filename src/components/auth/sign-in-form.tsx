@@ -1,243 +1,303 @@
 'use client'
 
-import { zodResolver } from '@hookform/resolvers/zod'
-import { CheckCircle2, Loader2, Mail, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, KeyRound, Loader2, ShieldCheck } from 'lucide-react'
 import * as React from 'react'
-import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { emailForLoginId, loginIdProblem, MIN_PASSWORD_LENGTH, normaliseLoginId } from '@/lib/accounts'
 import { getBrowserClient } from '@/lib/supabase/client'
-import { IS_DEMO } from '@/lib/supabase/env'
-import { signInSchema, type SignInValues } from '@/lib/validators'
 
 /**
- * The one sign-in form, used by both entry points.
+ * Signing in with a login ID and a password.
  *
  * There is deliberately no separate mechanism for owners. Which screen
- * someone arrives on decides nothing: the role is read from their profile
- * row after the link is followed, so an "owner sign-in" URL grants no more
- * than an employee one. If it did, the address itself would be the
- * credential and anyone who guessed it would be an owner.
+ * someone arrives on decides nothing: the role is read from their profile row
+ * after they are signed in, so an "owner sign-in" URL grants no more than an
+ * employee one. If it did, the address itself would be the credential.
  *
- * The two entry points differ only in what they say and where they send a
- * first-time claim.
+ * The login ID is turned into a synthetic address here and handed to
+ * Supabase's ordinary password sign-in. No password is checked, hashed or
+ * stored by this application.
  */
 
 export type SignInMode = 'employee' | 'owner'
 
-/** Where the flow currently is. Every branch has somewhere to go. */
 type Phase =
   | { at: 'idle' }
-  | { at: 'sending' }
-  | { at: 'sent'; email: string }
-  | { at: 'error'; message: string; canRetry: boolean }
-
-/** Seconds before another link may be requested. */
-const RESEND_COOLDOWN = 45
+  | { at: 'signing' }
+  | { at: 'error'; message: string }
 
 export function SignInForm({ mode, unclaimed }: { mode: SignInMode; unclaimed: boolean }) {
+  const [loginId, setLoginId] = React.useState('')
+  const [password, setPassword] = React.useState('')
+  const [reveal, setReveal] = React.useState(false)
+  const [touched, setTouched] = React.useState(false)
   const [phase, setPhase] = React.useState<Phase>({ at: 'idle' })
-  const [cooldown, setCooldown] = React.useState(0)
 
-  const form = useForm<SignInValues>({
-    resolver: zodResolver(signInSchema),
-    defaultValues: { email: '' },
-    mode: 'onChange',
-  })
-
-  // Countdown for the resend button, so a second link cannot be requested
-  // faster than the provider will send one.
-  React.useEffect(() => {
-    if (cooldown <= 0) return
-    const id = window.setInterval(() => setCooldown((s) => Math.max(0, s - 1)), 1000)
-    return () => window.clearInterval(id)
-  }, [cooldown])
+  const idProblem = touched ? loginIdProblem(loginId) : null
+  const canSubmit = loginIdProblem(loginId) === null && password.length > 0 && phase.at !== 'signing'
 
   /**
-   * Self-registration is permitted in exactly one situation: nobody exists
-   * yet, so there is nobody who could have invited the first owner. The
-   * server decides this, not the client — `workspace_is_unclaimed()` stops
-   * returning true the moment that first profile row is written.
+   * The first account is created by claiming, not by signing in. Only offered
+   * while the workspace has nobody in it, which the server decides — see
+   * useWorkspaceUnclaimed.
    */
   const claiming = mode === 'owner' && unclaimed
 
-  async function send(email: string) {
+  async function onSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    setTouched(true)
+    if (loginIdProblem(loginId) !== null) return
+
     const supabase = getBrowserClient()
     if (!supabase) {
-      setPhase({
-        at: 'error',
-        message: 'This copy of Flowline is not connected to a database, so there is nothing to sign in to.',
-        canRetry: false,
-      })
+      setPhase({ at: 'error', message: 'This copy of Flowline is not connected to a database.' })
       return
     }
 
-    setPhase({ at: 'sending' })
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          shouldCreateUser: claiming,
-        },
-      })
+    setPhase({ at: 'signing' })
 
-      if (error) {
-        setPhase({ at: 'error', ...describeAuthError(error.message, claiming) })
-        return
-      }
+    const { error } = await supabase.auth.signInWithPassword({
+      email: emailForLoginId(loginId),
+      password,
+    })
 
-      setPhase({ at: 'sent', email })
-      setCooldown(RESEND_COOLDOWN)
-    } catch {
+    if (error) {
+      /*
+       * One message for a wrong ID and a wrong password, on purpose. Telling
+       * someone the ID was right but the password was wrong confirms which
+       * accounts exist, which is exactly what a stranger trying names would
+       * want to learn.
+       */
+      const rateLimited = /rate|too many/i.test(error.message)
       setPhase({
         at: 'error',
-        message: 'We could not reach the sign-in service. Check your connection and try again.',
-        canRetry: true,
+        message: rateLimited
+          ? 'Too many attempts. Wait a minute and try again.'
+          : 'That login ID and password do not match. Check with your owner if you are not sure.',
       })
+      setPassword('')
+      return
     }
+
+    /*
+     * A full reload rather than a client navigation, deliberately.
+     *
+     * The session has just changed identity. Every cached query in memory
+     * belongs to the previous state, and a soft navigation would carry that
+     * cache across — showing the signed-out shell, or worse, the previous
+     * user's data until each query happened to refetch. Reloading discards
+     * all of it in one step.
+     */
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.assign('/')
   }
 
-  const onSubmit = form.handleSubmit((values) => send(values.email.trim().toLowerCase()))
-
-  if (phase.at === 'sent') {
-    return (
-      <div className="space-y-4 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-500">
-          <Mail className="h-6 w-6" strokeWidth={1.9} />
-        </div>
-        <div className="space-y-1.5">
-          <h2 className="text-[18px] font-semibold tracking-[-0.015em] text-ink">Check your email</h2>
-          <p className="text-[13.5px] leading-relaxed text-ink-muted text-pretty">
-            We sent a sign-in link to <span className="font-medium text-ink">{phase.email}</span>. Open it on this
-            device. The link works once and expires in an hour.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Button
-            variant="glass"
-            className="w-full"
-            disabled={cooldown > 0}
-            onClick={() => send(phase.email)}
-          >
-            {cooldown > 0 ? `Send another link in ${cooldown}s` : 'Send another link'}
-          </Button>
-          <Button variant="glass" className="w-full" onClick={() => setPhase({ at: 'idle' })}>
-            Use a different email
-          </Button>
-        </div>
-
-        <p className="text-[11.5px] leading-relaxed text-ink-faint">
-          Nothing arrived? Check the spam folder. The sender is your Supabase project.
-        </p>
-      </div>
-    )
+  if (claiming) {
+    return <ClaimOwnerForm />
   }
 
   return (
     <>
       <div className="space-y-1.5">
         <h2 className="text-[19px] font-semibold tracking-[-0.015em] text-ink">
-          {claiming ? 'Set up the owner account' : mode === 'owner' ? 'Owner sign-in' : 'Sign in'}
+          {mode === 'owner' ? 'Owner sign-in' : 'Sign in'}
         </h2>
         <p className="text-[13.5px] leading-relaxed text-ink-muted">
-          {claiming
-            ? 'Nobody has set this company up yet. The first account becomes the owner — use your own work email, and confirm it from the link we send.'
-            : 'Enter your work email and we will send you a link. There is no password to remember.'}
+          Use the login ID and password your owner gave you.
         </p>
       </div>
 
-      {claiming && (
-        <p className="mt-3 flex items-start gap-2 rounded-2xl bg-primary/[.06] px-3 py-2.5 text-[12px] leading-relaxed text-primary">
-          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          This only works once. After the owner exists, nobody can sign themselves up — everyone else has to be added
-          by an owner.
-        </p>
-      )}
-
       <form onSubmit={onSubmit} className="mt-5 space-y-3" noValidate>
         <div className="space-y-1.5">
-          <Label htmlFor="email">Work email</Label>
+          <Label htmlFor="login-id">Login ID</Label>
           <Input
-            id="email"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
+            id="login-id"
             autoFocus
-            placeholder="you@yourcompany.com"
-            aria-invalid={Boolean(form.formState.errors.email)}
-            aria-describedby={form.formState.errors.email ? 'email-error' : undefined}
-            {...form.register('email')}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            autoComplete="username"
+            placeholder="suresh"
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value)}
+            onBlur={() => setTouched(true)}
+            aria-invalid={Boolean(idProblem)}
+            aria-describedby={idProblem ? 'login-id-error' : undefined}
           />
-          {form.formState.errors.email && (
-            <p id="email-error" role="alert" className="text-[12px] text-red-500">
-              {form.formState.errors.email.message}
+          {idProblem && (
+            <p id="login-id-error" role="alert" className="text-[12px] text-red-500">
+              {idProblem}
             </p>
           )}
         </div>
 
-        {phase.at === 'error' && (
-          <div role="alert" className="surface rounded-2xl p-3 text-[12.5px] leading-relaxed text-ink-muted">
-            <p className="font-medium text-ink">{phase.message}</p>
-            {!phase.canRetry && mode === 'employee' && (
-              <p className="mt-1">
-                If you are the owner setting this up for the first time, use the owner sign-in instead.
-              </p>
-            )}
+        <div className="space-y-1.5">
+          <Label htmlFor="password">Password</Label>
+          <div className="relative">
+            <Input
+              id="password"
+              type={reveal ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="pr-11"
+            />
+            {/* Typing a password given to you verbally, on a phone, without
+                being able to see it is how people get locked out. */}
+            <button
+              type="button"
+              onClick={() => setReveal((r) => !r)}
+              aria-label={reveal ? 'Hide password' : 'Show password'}
+              aria-pressed={reveal}
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-ink-faint hover:text-ink"
+            >
+              {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
+        </div>
+
+        {phase.at === 'error' && (
+          <p role="alert" className="surface rounded-2xl p-3 text-[12.5px] leading-relaxed text-ink">
+            {phase.message}
+          </p>
         )}
 
-        <Button
-          type="submit"
-          size="lg"
-          className="w-full gap-2"
-          disabled={phase.at === 'sending' || !form.formState.isValid}
-        >
-          {phase.at === 'sending' ? <Loader2 className="animate-spin" /> : <Mail />}
-          {claiming ? 'Create the owner account' : 'Send me a sign-in link'}
+        <Button type="submit" size="lg" className="w-full gap-2" disabled={!canSubmit}>
+          {phase.at === 'signing' ? <Loader2 className="animate-spin" /> : <KeyRound />}
+          Sign in
         </Button>
       </form>
 
-      <p className="mt-4 flex items-start gap-1.5 text-[11.5px] leading-relaxed text-ink-faint">
-        <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0" />
-        Signing in confirms the address belongs to you — the link only works in the mailbox it was sent to.
+      <p className="mt-4 text-[11.5px] leading-relaxed text-ink-faint">
+        Forgotten your password? Only an owner can set a new one — there is no email to reset it from.
       </p>
     </>
   )
 }
 
 /**
- * Turns a provider message into something a person can act on.
+ * The very first account.
  *
- * Supabase's own strings are written for developers, and the one that matters
- * most here — a refused sign-up when the address is unknown — reads as
- * "Signups not allowed for otp", which tells an employee nothing about what
- * they should do instead.
+ * Self-registration is permitted exactly once, while the workspace is empty,
+ * because there is nobody who could have created the first owner. Done in the
+ * browser with an ordinary sign-up rather than through the edge function,
+ * which requires an owner to already exist.
  */
-function describeAuthError(raw: string, claiming: boolean): { message: string; canRetry: boolean } {
-  const text = raw.toLowerCase()
+function ClaimOwnerForm() {
+  const [loginId, setLoginId] = React.useState('')
+  const [password, setPassword] = React.useState('')
+  const [fullName, setFullName] = React.useState('')
+  const [phase, setPhase] = React.useState<Phase>({ at: 'idle' })
 
-  if (text.includes('signups not allowed') || text.includes('signup is disabled')) {
-    return {
-      message: claiming
-        ? 'This company has already been set up, so the owner account cannot be created again. Ask an existing owner to add you.'
-        : 'That email is not on this company’s list yet. An owner has to add you before you can sign in.',
-      canRetry: false,
+  const idProblem = loginId ? loginIdProblem(loginId) : null
+  const shortPassword = password.length > 0 && password.length < MIN_PASSWORD_LENGTH
+  const canSubmit =
+    loginIdProblem(loginId) === null &&
+    password.length >= MIN_PASSWORD_LENGTH &&
+    fullName.trim().length >= 2 &&
+    phase.at !== 'signing'
+
+  async function onSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    const supabase = getBrowserClient()
+    if (!supabase) return
+
+    setPhase({ at: 'signing' })
+    const { error } = await supabase.auth.signUp({
+      email: emailForLoginId(loginId),
+      password,
+      options: { data: { full_name: fullName.trim(), login_id: normaliseLoginId(loginId) } },
+    })
+
+    if (error) {
+      setPhase({ at: 'error', message: error.message })
+      return
     }
+
+    // handle_new_user() writes the profile and makes the first one an owner.
+    /*
+     * A full reload rather than a client navigation, deliberately.
+     *
+     * The session has just changed identity. Every cached query in memory
+     * belongs to the previous state, and a soft navigation would carry that
+     * cache across — showing the signed-out shell, or worse, the previous
+     * user's data until each query happened to refetch. Reloading discards
+     * all of it in one step.
+     */
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.assign('/')
   }
-  if (text.includes('rate limit') || text.includes('too many')) {
-    return {
-      message: 'Too many links have been requested for this address. Wait a minute and try again.',
-      canRetry: true,
-    }
-  }
-  if (text.includes('invalid') && text.includes('email')) {
-    return { message: 'That does not look like a working email address.', canRetry: true }
-  }
-  return { message: raw || 'The sign-in link could not be sent. Try again.', canRetry: true }
+
+  return (
+    <>
+      <div className="space-y-1.5">
+        <h2 className="text-[19px] font-semibold tracking-[-0.015em] text-ink">Set up the owner account</h2>
+        <p className="text-[13.5px] leading-relaxed text-ink-muted">
+          Nobody has set this company up yet. The first account becomes the owner, and can then create everyone else.
+        </p>
+      </div>
+
+      <p className="mt-3 flex items-start gap-2 rounded-2xl bg-primary/[.06] px-3 py-2.5 text-[12px] leading-relaxed text-primary">
+        <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        This only works once. Write the password down somewhere safe — there is no email to reset it from.
+      </p>
+
+      <form onSubmit={onSubmit} className="mt-5 space-y-3" noValidate>
+        <div className="space-y-1.5">
+          <Label htmlFor="claim-name">Your name</Label>
+          <Input id="claim-name" autoFocus value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="claim-id">Login ID</Label>
+          <Input
+            id="claim-id"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="rajesh"
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value)}
+            aria-invalid={Boolean(idProblem)}
+            aria-describedby={idProblem ? 'claim-id-error' : undefined}
+          />
+          {idProblem && (
+            <p id="claim-id-error" role="alert" className="text-[12px] text-red-500">
+              {idProblem}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="claim-password">Password</Label>
+          <Input
+            id="claim-password"
+            type="text"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            aria-invalid={shortPassword}
+            aria-describedby="claim-password-hint"
+          />
+          <p id="claim-password-hint" className="text-[11.5px] text-ink-faint">
+            At least {MIN_PASSWORD_LENGTH} characters. Shown as you type, because nobody else is looking at your screen
+            during setup.
+          </p>
+        </div>
+
+        {phase.at === 'error' && (
+          <p role="alert" className="surface rounded-2xl p-3 text-[12.5px] leading-relaxed text-ink">
+            {phase.message}
+          </p>
+        )}
+
+        <Button type="submit" size="lg" className="w-full gap-2" disabled={!canSubmit}>
+          {phase.at === 'signing' ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
+          Create the owner account
+        </Button>
+      </form>
+    </>
+  )
 }
-
-/** Demo builds have no sign-in; callers use this to redirect away. */
-export const SIGN_IN_DISABLED = IS_DEMO
