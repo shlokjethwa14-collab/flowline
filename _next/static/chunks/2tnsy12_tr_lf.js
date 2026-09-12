@@ -1,0 +1,25 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,9579,e=>{"use strict";var t=e.i(43476),o=e.i(71645),n=e.i(8560),a=e.i(90072),r=e.i(31935);let i=[{at:0,color:new a.Color("#6d58f0")},{at:.35,color:new a.Color("#4f9ff0")},{at:.7,color:new a.Color("#2fbfa0")},{at:1,color:new a.Color("#6d58f0")}],l=new a.Color("#ffffff");e.s(["default",0,function({progressRef:e}){let s=o.useRef(null);return o.useEffect(()=>{let t=s.current;if(!t)return;let o=window.matchMedia("(prefers-reduced-motion: reduce)").matches,c=new n.WebGLRenderer({antialias:!0,alpha:!0,powerPreference:"high-performance"});c.setPixelRatio(Math.min(window.devicePixelRatio,1.6)),c.setClearAlpha(0),c.toneMapping=a.ACESFilmicToneMapping,t.appendChild(c.domElement),Object.assign(c.domElement.style,{width:"100%",height:"100%",display:"block"});let d=new a.Scene,f=new a.PerspectiveCamera(42,1,.1,100),m=new n.PMREMGenerator(c),u=m.fromScene(new r.RoomEnvironment,.04);d.environment=u.texture,d.add(new a.AmbientLight(0xffffff,.8));let h=new a.DirectionalLight(0xffffff,2);h.position.set(3,5,4),d.add(h);let p=new a.Mesh(new a.SphereGeometry(40,32,32),new a.ShaderMaterial({side:a.BackSide,depthWrite:!1,uniforms:{uTop:{value:new a.Color("#ffffff")},uBottom:{value:new a.Color("#eef0f6")},uAccent:{value:new a.Color("#6d58f0")},uAccentStrength:{value:.35}},vertexShader:`
+          varying vec3 vPos;
+          void main() {
+            vPos = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,fragmentShader:`
+          uniform vec3 uTop;
+          uniform vec3 uBottom;
+          uniform vec3 uAccent;
+          uniform float uAccentStrength;
+          varying vec3 vPos;
+          void main() {
+            vec3 dir = normalize(vPos);
+            // Vertical ramp, then a soft accent bloom toward the centre so the
+            // dome is not a flat wash behind the core.
+            float ramp = smoothstep(-0.7, 0.8, dir.y);
+            vec3 base = mix(uBottom, uTop, ramp);
+            // Pushed below centre: the bloom is the most saturated part of
+            // the field, and the headline sits dead centre. Keeping it low
+            // leaves the copy over the flatter, lighter part of the ramp.
+            float bloom = pow(max(0.0, 1.0 - length(dir.xy - vec2(0.0, -0.42)) * 1.15), 2.4);
+            gl_FragColor = vec4(mix(base, uAccent, bloom * uAccentStrength), 1.0);
+          }
+        `}));function w(){let e=document.documentElement.classList.contains("dark"),t=p.material.uniforms;t.uTop.value.set(e?"#0a0a11":"#f7f8ff"),t.uBottom.value.set(e?"#191932":"#e3e8fb"),t.uAccentStrength.value=e?.72:.28,A.blending=e?a.AdditiveBlending:a.NormalBlending,A.opacity=e?.85:.5,A.needsUpdate=!0}d.add(p);let v=new a.Mesh(new a.IcosahedronGeometry(1.1,6),new a.MeshPhysicalMaterial({transmission:.92,thickness:1.4,roughness:.06,metalness:0,ior:1.48,clearcoat:1,clearcoatRoughness:.08,iridescence:.6,iridescenceIOR:1.4,transparent:!0}));v.position.set(0,-2.55,0),d.add(v);let g=new Float32Array(4200),M=new Float32Array(4200),b=new Float32Array(4200);for(let e=0;e<1400;e+=1){M[3*e]=(Math.random()-.5)*26,M[3*e+1]=(Math.random()-.5)*18,M[3*e+2]=(Math.random()-.5)*20;let t=Math.acos(1-2*(e+.5)/1400),o=Math.PI*(1+Math.sqrt(5))*e,n=2.1+.5*Math.random();b[3*e]=Math.cos(o)*Math.sin(t)*n,b[3*e+1]=Math.sin(o)*Math.sin(t)*n,b[3*e+2]=Math.cos(t)*n}g.set(M);let y=new a.BufferGeometry;y.setAttribute("position",new a.BufferAttribute(g,3));let A=new a.PointsMaterial({size:.06,transparent:!0,opacity:.85,depthWrite:!1,blending:a.AdditiveBlending}),P=new a.Points(y,A);d.add(P),w();let C=new MutationObserver(w);function x(){let{clientWidth:e,clientHeight:o}=t;0!==e&&0!==o&&(c.setSize(e,o,!1),f.aspect=e/o,f.updateProjectionMatrix())}C.observe(document.documentElement,{attributes:!0,attributeFilter:["class"]});let S=new ResizeObserver(x);S.observe(t),x();let B=new a.Color,R=new a.Clock,E=0,T=e.current;return!function t(){if(E=requestAnimationFrame(t),document.hidden)return;let n=a.MathUtils.clamp(e.current,0,1);T+=(n-T)*(o?1:.08);let r=R.getElapsedTime();f.position.set(0,0,9-5.5*T),f.lookAt(0,0,0),function(e,t){for(let o=0;o<i.length-1;o+=1){let n=i[o],a=i[o+1];if(e<=a.at){let o=a.at-n.at,r=0===o?0:(e-n.at)/o;return t.copy(n.color).lerp(a.color,r)}}t.copy(i[i.length-1].color)}(T,B),A.color.copy(B),v.material.color.copy(B).lerp(l,.55),p.material.uniforms.uAccent.value.copy(B),o||(v.rotation.y=.12*r+T*Math.PI,v.rotation.x=.12*Math.sin(.2*r),P.rotation.y=-(.03*r));let s=Math.sin(a.MathUtils.clamp(T,0,1)*Math.PI),m=y.getAttribute("position"),u=m.array;for(let e=0;e<4200;e+=1)u[e]=a.MathUtils.lerp(M[e],b[e],s);m.needsUpdate=!0,c.render(d,f)}(),()=>{cancelAnimationFrame(E),S.disconnect(),C.disconnect(),v.geometry.dispose(),v.material.dispose(),p.geometry.dispose(),p.material.dispose(),y.dispose(),A.dispose(),u.dispose(),m.dispose(),c.dispose(),c.domElement.remove()}},[e]),(0,t.jsx)("div",{ref:s,className:"h-full w-full"})}])},63e3,function(e){e.n(e.i(9579))}]);
